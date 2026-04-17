@@ -71,6 +71,11 @@ class COC_Order_Meta {
      * ------------------------------------------------------------------ */
 
     public static function render_panel( $order ) {
+        // Hard gate: render nothing when the GrowEver API is disconnected or account inactive.
+        if ( get_option( 'coc_api_connected', '' ) !== '1' ) {
+            return;
+        }
+
         if ( ! $order instanceof WC_Abstract_Order ) {
             // Classic screen passes a WP_Post.
             if ( $order instanceof WP_Post ) {
@@ -84,14 +89,12 @@ class COC_Order_Meta {
         $customer_ip = $order->get_customer_ip_address();
         $is_blocked  = $customer_ip ? COC_IP_Blocker::is_blocked( $customer_ip ) : false;
         $phone       = self::extract_phone( $order );
-        $api_connected = '1' === get_option( 'coc_api_connected', '' );
+        $api_connected = true; // already confirmed above
 
         ?>
         <div class="clear"></div>
         <div class="coc-wrapper">
-            <?php if ( $api_connected ) : ?>
             <h3 class="coc-section-title"><?php esc_html_e( 'Courier Success Ratio', 'courier-order-check' ); ?></h3>
-            <?php endif; ?>
 
             <?php if ( $customer_ip ) : ?>
             <div class="coc-ip-bar <?php echo $is_blocked ? 'coc-ip-bar--blocked' : ''; ?>"
@@ -183,7 +186,19 @@ class COC_Order_Meta {
         $result = COC_API::courier_check( $phone );
 
         if ( is_wp_error( $result ) ) {
-            wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+            $msg = $result->get_error_message();
+            // If the API reports the account is inactive or unauthorized,
+            // disconnect the plugin immediately so the next page load hides
+            // all features. Also tell the JS to reload.
+            if ( stripos( $msg, 'inactive' ) !== false
+                || in_array( $result->get_error_code(), [ 'coc_unauthorized', 'coc_forbidden' ], true )
+            ) {
+                update_option( 'coc_api_connected', '' );
+                update_option( 'coc_api_last_error', $msg );
+                delete_transient( 'coc_connection_recheck' );
+                wp_send_json_error( [ 'message' => $msg, 'reload' => true ] );
+            }
+            wp_send_json_error( [ 'message' => $msg ] );
         }
 
         set_transient( $transient_key, $result, 30 * MINUTE_IN_SECONDS );

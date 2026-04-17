@@ -505,6 +505,63 @@ class COC_Admin {
         return '1' === get_option( 'coc_api_connected', '' );
     }
 
+    /**
+     * Check whether the API response body signals an inactive account.
+     *
+     * @param  array $data Decoded JSON from the API.
+     * @return string|false  Error message if inactive, false otherwise.
+     */
+    private static function detect_inactive_account( $data ) {
+        if ( ! is_array( $data ) ) {
+            return false;
+        }
+        $active  = isset( $data['active'] )  ? $data['active']  : null;
+        $status  = isset( $data['status'] )  ? $data['status']  : null;
+        $success = isset( $data['success'] ) ? $data['success'] : null;
+        $message = isset( $data['message'] ) ? $data['message'] : '';
+
+        $body_inactive = ( $active === false || $active === 0 || $active === '0' )
+                      || ( $status  !== null && strtolower( (string) $status  ) === 'inactive' )
+                      || ( $success === false || $success === 0 )
+                      || ( stripos( $message, 'inactive' ) !== false );
+
+        if ( ! $body_inactive ) {
+            return false;
+        }
+
+        return $message !== ''
+            ? $message
+            : __( 'Your account is inactive. Please contact an administrator.', 'courier-order-check' );
+    }
+
+    /**
+     * Re-verify the API connection (throttled to once every 5 minutes).
+     * Called synchronously from coc_init() before feature classes are
+     * initialised, so an inactive account blocks everything immediately.
+     */
+    public static function maybe_recheck_connection() {
+        if ( get_transient( 'coc_connection_recheck' ) ) {
+            return;
+        }
+        set_transient( 'coc_connection_recheck', 1, 5 * MINUTE_IN_SECONDS );
+
+        $result = COC_API::check_connection();
+
+        if ( is_wp_error( $result ) ) {
+            update_option( 'coc_api_connected', '' );
+            update_option( 'coc_api_last_error', $result->get_error_message() );
+            delete_transient( 'coc_connection_recheck' );
+            return;
+        }
+
+        $inactive_msg = self::detect_inactive_account( $result );
+        if ( $inactive_msg !== false ) {
+            update_option( 'coc_api_connected', '' );
+            update_option( 'coc_api_last_error', $inactive_msg );
+            delete_transient( 'coc_connection_recheck' );
+        }
+    }
+
     /* ------------------------------------------------------------------
      * Sanitize callbacks
      * ------------------------------------------------------------------ */
@@ -514,6 +571,8 @@ class COC_Admin {
         $value = sanitize_text_field( $value );
         if ( $value !== get_option( 'coc_api_key', '' ) ) {
             update_option( 'coc_api_connected', '' );
+            delete_option( 'coc_api_last_error' );
+            delete_transient( 'coc_connection_recheck' );
         }
         return $value;
     }
@@ -524,6 +583,8 @@ class COC_Admin {
         $value = rtrim( $value, '/' );
         if ( $value !== get_option( 'coc_domain', '' ) ) {
             update_option( 'coc_api_connected', '' );
+            delete_option( 'coc_api_last_error' );
+            delete_transient( 'coc_connection_recheck' );
         }
         return $value;
     }
@@ -695,6 +756,15 @@ class COC_Admin {
             </form>
 
             <?php if ( ! $connected ) : ?>
+            <!-- ── Inactive / disconnected error notice ──────────── -->
+            <?php $last_error = get_option( 'coc_api_last_error', '' ); ?>
+            <?php if ( $last_error ) : ?>
+            <div class="notice notice-error" style="margin:16px 0;padding:12px 16px;">
+                <p><strong><?php esc_html_e( 'GrowEver API disconnected:', 'courier-order-check' ); ?></strong>
+                <?php echo esc_html( $last_error ); ?></p>
+                <p style="color:#555;margin:4px 0 0;"><?php esc_html_e( 'All plugin features are disabled. Update your API Key / Domain and click Test Connection to restore access.', 'courier-order-check' ); ?></p>
+            </div>
+            <?php endif; ?>
             <!-- ── Test Connection (shown when not yet connected) ── -->
             <div class="coc-connect-box">
                 <h2 style="margin:0 0 6px;"><?php esc_html_e( 'Verify Connection', 'courier-order-check' ); ?></h2>
@@ -817,7 +887,15 @@ class COC_Admin {
             update_option( 'coc_api_connected', '' );
             wp_send_json_error( [ 'message' => $result->get_error_message() ] );
         }
+        // Block even HTTP-200 responses that indicate an inactive account.
+        $inactive_msg = self::detect_inactive_account( $result );
+        if ( $inactive_msg !== false ) {
+            update_option( 'coc_api_connected', '' );
+            wp_send_json_error( [ 'message' => $inactive_msg ] );
+        }
         update_option( 'coc_api_connected', '1' );
+        delete_option( 'coc_api_last_error' );
+        delete_transient( 'coc_connection_recheck' );
         wp_send_json_success( $result );
     }
 
@@ -827,6 +905,8 @@ class COC_Admin {
             wp_send_json_error();
         }
         update_option( 'coc_api_connected', '' );
+        delete_option( 'coc_api_last_error' );
+        delete_transient( 'coc_connection_recheck' );
         wp_send_json_success();
     }
 

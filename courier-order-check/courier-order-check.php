@@ -60,21 +60,32 @@ function coc_init() {
     require_once COC_PLUGIN_DIR . 'includes/class-coc-cod-restriction.php';
 
     COC_Admin::init();
-    COC_Order_Meta::init();
-    if ( get_option( 'coc_order_lock_enabled', '' ) ) {
-        COC_Order_Lock::init();
+
+    // Re-verify the API connection synchronously (throttled by a 5-min transient).
+    // This runs BEFORE the feature-init block so that an inactive / revoked account
+    // is detected on the same page load — not one load later.
+    if ( is_admin() && ! wp_doing_ajax() && get_option( 'coc_api_connected', '' ) === '1' ) {
+        COC_Admin::maybe_recheck_connection();
     }
-    COC_IP_Blocker::init();
-    COC_GTM::init();
-    COC_Meta_Pixel::init();
-    COC_TikTok_Pixel::init();
-    COC_GAA::init();
-    COC_FB_Catalog::init();
-    COC_Pathao::init();
-    COC_Steadfast::init();
-    COC_Print_Invoice::init();
-    if ( get_option( 'coc_cod_restrict_enabled', '' ) ) {
-        COC_COD_Restriction::init();
+
+    // All features are blocked unless the GrowEver API connection is active.
+    if ( get_option( 'coc_api_connected', '' ) === '1' ) {
+        COC_Order_Meta::init();
+        if ( get_option( 'coc_order_lock_enabled', '' ) ) {
+            COC_Order_Lock::init();
+        }
+        COC_IP_Blocker::init();
+        COC_GTM::init();
+        COC_Meta_Pixel::init();
+        COC_TikTok_Pixel::init();
+        COC_GAA::init();
+        COC_FB_Catalog::init();
+        COC_Pathao::init();
+        COC_Steadfast::init();
+        COC_Print_Invoice::init();
+        if ( get_option( 'coc_cod_restrict_enabled', '' ) ) {
+            COC_COD_Restriction::init();
+        }
     }
 }
 add_action( 'plugins_loaded', 'coc_init' );
@@ -83,6 +94,10 @@ add_action( 'plugins_loaded', 'coc_init' );
  * Combined courier panel — renders Pathao + Steadfast side by side on order edit pages.
  */
 function coc_render_courier_row( $order ) {
+    // Never show courier panels when the GrowEver API is disconnected or account inactive.
+    if ( get_option( 'coc_api_connected', '' ) !== '1' ) {
+        return;
+    }
     $show_pathao    = class_exists( 'COC_Pathao' )    && COC_Pathao::is_connected();
     $show_steadfast = class_exists( 'COC_Steadfast' ) && COC_Steadfast::is_connected();
     if ( ! $show_pathao && ! $show_steadfast ) {

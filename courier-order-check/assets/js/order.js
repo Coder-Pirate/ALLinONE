@@ -36,7 +36,13 @@
                         $loading.hide();
                         $btn.prop( 'disabled', false );
 
-                        if ( ! response.success ) {
+                    if ( ! response.success ) {
+                            // If the server signals the account is inactive/disconnected,
+                            // reload so the panel is removed immediately.
+                            if ( response.data && response.data.reload ) {
+                                window.location.reload();
+                                return;
+                            }
                             $error.text( ( response.data && response.data.message ) || 'An error occurred.' ).show();
                             return;
                         }
