@@ -15,9 +15,38 @@ class COC_Print_Invoice {
      * ------------------------------------------------------------------ */
 
     public static function init() {
-        add_action( 'admin_menu',                                         [ __CLASS__, 'register_invoice_page' ] );
+        // Fire early — before WP renders any admin chrome.
+        add_action( 'admin_init',    [ __CLASS__, 'maybe_output_invoice' ] );
+        add_action( 'admin_menu',    [ __CLASS__, 'register_invoice_page' ] );
         add_action( 'add_meta_boxes',          [ __CLASS__, 'register_meta_box' ] );
         add_action( 'admin_enqueue_scripts',   [ __CLASS__, 'enqueue_assets' ] );
+    }
+
+    /* ------------------------------------------------------------------
+     * Early interception — outputs invoice as standalone page
+     * ------------------------------------------------------------------ */
+
+    public static function maybe_output_invoice() {
+        if ( ! isset( $_GET['page'] ) || 'coc-invoice' !== $_GET['page'] ) {
+            return;
+        }
+
+        $order_id = absint( $_GET['order_id'] ?? 0 );
+        $nonce    = sanitize_text_field( wp_unslash( $_GET['nonce'] ?? '' ) );
+
+        if ( ! $order_id || ! wp_verify_nonce( $nonce, 'coc_invoice_' . $order_id ) ) {
+            wp_die( esc_html__( 'Invalid or expired invoice link.', 'courier-order-check' ) );
+        }
+        if ( ! current_user_can( 'edit_shop_orders' ) ) {
+            wp_die( esc_html__( 'You do not have permission to view invoices.', 'courier-order-check' ) );
+        }
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            wp_die( esc_html__( 'Order not found.', 'courier-order-check' ) );
+        }
+
+        self::output_invoice( $order );
+        exit;
     }
 
     /* ------------------------------------------------------------------
@@ -92,26 +121,12 @@ class COC_Print_Invoice {
     }
 
     /* ------------------------------------------------------------------
-     * Invoice page renderer
+     * Invoice page renderer (never reached — admin_init handles it first)
      * ------------------------------------------------------------------ */
 
     public static function render_invoice_page() {
-        $order_id = absint( $_GET['order_id'] ?? 0 );
-        $nonce    = sanitize_text_field( wp_unslash( $_GET['nonce'] ?? '' ) );
-
-        if ( ! $order_id || ! wp_verify_nonce( $nonce, 'coc_invoice_' . $order_id ) ) {
-            wp_die( esc_html__( 'Invalid or expired invoice link.', 'courier-order-check' ) );
-        }
-        if ( ! current_user_can( 'edit_shop_orders' ) ) {
-            wp_die( esc_html__( 'You do not have permission to view invoices.', 'courier-order-check' ) );
-        }
-        $order = wc_get_order( $order_id );
-        if ( ! $order ) {
-            wp_die( esc_html__( 'Order not found.', 'courier-order-check' ) );
-        }
-
-        self::output_invoice( $order );
-        exit;
+        // Intentionally empty: output is handled by maybe_output_invoice()
+        // which fires at admin_init before WP renders any admin chrome.
     }
 
     /* ------------------------------------------------------------------
@@ -182,7 +197,7 @@ class COC_Print_Invoice {
 body {
     font-family: 'Segoe UI', Arial, sans-serif;
     font-size: 13px;
-    color: #1a1a2e;
+    color: #000;
     background: #f0f4f8;
 }
 
@@ -190,20 +205,20 @@ body {
     max-width: 820px;
     margin: 32px auto;
     background: #fff;
-    border-radius: 10px;
-    box-shadow: 0 4px 30px rgba(0,0,0,.12);
+    border: 1px solid #ccc;
     overflow: hidden;
 }
 
 /* ── Header ─────────────────────────────────────────────── */
 .inv-header {
-    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
-    color: #fff;
-    padding: 32px 40px 28px;
+    background: #fff;
+    color: #000;
+    padding: 32px 40px 24px;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 20px;
+    border-bottom: 2px solid #000;
 }
 
 .inv-shop h1 {
@@ -211,10 +226,11 @@ body {
     font-weight: 800;
     letter-spacing: .5px;
     margin-bottom: 6px;
+    color: #000;
 }
 .inv-shop p {
     font-size: 12px;
-    opacity: .82;
+    color: #000;
     line-height: 1.7;
 }
 
@@ -223,7 +239,7 @@ body {
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: .1em;
-    opacity: .7;
+    color: #000;
     margin-bottom: 2px;
 }
 .inv-meta .inv-number {
@@ -231,65 +247,43 @@ body {
     font-weight: 900;
     line-height: 1;
     margin-bottom: 12px;
+    color: #000;
 }
 .inv-meta table { margin-left: auto; }
-.inv-meta table td { padding: 2px 0 2px 14px; font-size: 12px; }
-.inv-meta table td:first-child { opacity: .75; text-align: left; }
+.inv-meta table td { padding: 2px 0 2px 14px; font-size: 12px; color: #000; }
+.inv-meta table td:first-child { text-align: left; }
 .inv-meta table td:last-child  { font-weight: 600; }
-
-/* ── Status ribbon ───────────────────────────────────────── */
-.inv-status-bar {
-    background: #f1f5ff;
-    border-bottom: 1px solid #dbe4ff;
-    padding: 8px 40px;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: #374151;
-}
-.inv-status-pill {
-    display: inline-block;
-    padding: 2px 12px;
-    border-radius: 20px;
-    font-weight: 700;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    background: #2563eb;
-    color: #fff;
-}
 
 /* ── Address block ───────────────────────────────────────── */
 .inv-addresses {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0;
-    border-bottom: 1px solid #e8edf3;
+    border-bottom: 1px solid #000;
 }
 .inv-addr-block {
     padding: 22px 40px;
 }
 .inv-addr-block + .inv-addr-block {
-    border-left: 1px solid #e8edf3;
+    border-left: 1px solid #000;
 }
 .inv-addr-title {
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: .12em;
-    color: #2563eb;
+    color: #000;
     font-weight: 800;
     margin-bottom: 8px;
 }
 .inv-addr-block h3 {
     font-size: 14px;
     font-weight: 700;
-    color: #1a1a2e;
+    color: #000;
     margin-bottom: 4px;
 }
 .inv-addr-block p {
     font-size: 12px;
-    color: #4b5563;
+    color: #000;
     line-height: 1.7;
 }
 
@@ -302,7 +296,7 @@ body {
     margin-top: 22px;
 }
 .inv-items-table thead tr {
-    background: #1e3a5f;
+    background: #000;
     color: #fff;
 }
 .inv-items-table th {
@@ -312,25 +306,25 @@ body {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .07em;
+    color: #fff;
 }
 .inv-items-table th:last-child,
 .inv-items-table td:last-child { text-align: right; }
 
 .inv-items-table tbody tr {
-    border-bottom: 1px solid #f0f4f8;
+    border-bottom: 1px solid #ddd;
 }
 .inv-items-table tbody tr:last-child { border-bottom: none; }
-.inv-items-table tbody tr:nth-child(even) { background: #f8faff; }
 .inv-items-table td {
     padding: 11px 14px;
     font-size: 13px;
-    color: #374151;
+    color: #000;
     vertical-align: top;
 }
-.inv-items-table td:first-child { font-weight: 600; color: #1a1a2e; }
+.inv-items-table td:first-child { font-weight: 600; color: #000; }
 .inv-items-table td small {
     display: block;
-    color: #9ca3af;
+    color: #444;
     font-weight: 400;
     font-size: 11px;
     margin-top: 2px;
@@ -344,22 +338,21 @@ body {
 }
 .inv-totals {
     width: 280px;
-    border: 1px solid #e8edf3;
-    border-radius: 8px;
+    border: 1px solid #000;
     overflow: hidden;
 }
 .inv-totals table { width: 100%; border-collapse: collapse; }
 .inv-totals td {
     padding: 9px 16px;
     font-size: 13px;
-    color: #374151;
-    border-bottom: 1px solid #f0f4f8;
+    color: #000;
+    border-bottom: 1px solid #ddd;
 }
 .inv-totals td:last-child { text-align: right; font-weight: 600; }
 .inv-totals tr:last-child td { border-bottom: none; }
 
 .inv-total-row td {
-    background: #1e3a5f;
+    background: #000;
     color: #fff !important;
     font-size: 15px !important;
     font-weight: 800 !important;
@@ -370,7 +363,7 @@ body {
 .inv-footer-info {
     margin: 0 40px;
     padding: 18px 0;
-    border-top: 1px solid #e8edf3;
+    border-top: 1px solid #000;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
@@ -379,26 +372,26 @@ body {
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .1em;
-    color: #2563eb;
+    color: #000;
     font-weight: 800;
     margin-bottom: 6px;
 }
 .inv-footer-info-block p {
     font-size: 12px;
-    color: #4b5563;
+    color: #000;
     line-height: 1.7;
 }
 
 /* ── Footer bar ──────────────────────────────────────────── */
 .inv-footer {
-    background: #f8faff;
-    border-top: 1px solid #e8edf3;
+    background: #f5f5f5;
+    border-top: 1px solid #000;
     text-align: center;
     padding: 16px 40px;
     font-size: 12px;
-    color: #6b7280;
+    color: #000;
 }
-.inv-footer strong { color: #1e3a5f; }
+.inv-footer strong { color: #000; }
 
 /* ── Print button ────────────────────────────────────────── */
 .inv-print-bar {
@@ -409,17 +402,15 @@ body {
 .inv-print-btn {
     display: inline-block;
     padding: 11px 32px;
-    background: #2563eb;
+    background: #000;
     color: #fff;
     border: none;
-    border-radius: 8px;
     font-size: 14px;
     font-weight: 700;
     cursor: pointer;
     letter-spacing: .02em;
-    box-shadow: 0 2px 8px rgba(37,99,235,.35);
 }
-.inv-print-btn:hover { background: #1d4ed8; }
+.inv-print-btn:hover { background: #333; }
 
 /* ── Print media ─────────────────────────────────────────── */
 @media print {
@@ -428,7 +419,7 @@ body {
     .invoice-page {
         margin: 0 !important;
         box-shadow: none !important;
-        border-radius: 0 !important;
+        border: none !important;
         max-width: 100% !important;
     }
 }
