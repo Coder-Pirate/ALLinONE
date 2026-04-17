@@ -22,7 +22,7 @@ class COC_Admin {
      * ------------------------------------------------------------------ */
 
     public static function add_menu() {
-        // Top-level GrowEver menu.
+        // Top-level GrowEver menu (renders the main Settings page).
         add_menu_page(
             __( 'GrowEver', 'courier-order-check' ),
             __( 'GrowEver', 'courier-order-check' ),
@@ -43,7 +43,34 @@ class COC_Admin {
             [ __CLASS__, 'render_settings_page' ]
         );
 
-        // IP Blocklist as a child of GrowEver.
+        // Only show config submenus when connected.
+        if ( ! self::is_api_connected() ) {
+            return;
+        }
+
+        $submenus = [
+            [ 'coc-tracking',   __( 'Tracking',          'courier-order-check' ), 'render_page_tracking'   ],
+            [ 'coc-meta',       __( 'Meta Pixel',         'courier-order-check' ), 'render_page_meta'       ],
+            [ 'coc-tiktok',     __( 'TikTok Pixel',       'courier-order-check' ), 'render_page_tiktok'     ],
+            [ 'coc-ga4',        __( 'Google Analytics',   'courier-order-check' ), 'render_page_ga4'        ],
+            [ 'coc-gtm',        __( 'Google Tag Manager', 'courier-order-check' ), 'render_page_gtm'        ],
+            [ 'coc-fb-catalog', __( 'FB Catalog',         'courier-order-check' ), 'render_page_fb_catalog' ],
+            [ 'coc-pathao',     __( 'Pathao Courier',     'courier-order-check' ), 'render_page_pathao'     ],
+            [ 'coc-steadfast',  __( 'Steadfast Courier',  'courier-order-check' ), 'render_page_steadfast'  ],
+        ];
+
+        foreach ( $submenus as [ $slug, $title, $callback ] ) {
+            add_submenu_page(
+                'courier-order-check',
+                $title . ' — GrowEver',
+                $title,
+                'manage_woocommerce',
+                $slug,
+                [ __CLASS__, $callback ]
+            );
+        }
+
+        // IP Blocklist.
         add_submenu_page(
             'courier-order-check',
             __( 'IP Blocklist', 'courier-order-check' ),
@@ -59,7 +86,7 @@ class COC_Admin {
      * ------------------------------------------------------------------ */
 
     public static function register_settings() {
-        // ── API Configuration ───────────────────────────────────────
+        // ── API Configuration (always registered — main Settings page) ──
         register_setting( 'coc_settings_group', 'coc_api_key', [
             'type'              => 'string',
             'sanitize_callback' => [ __CLASS__, 'sanitize_api_key' ],
@@ -75,151 +102,99 @@ class COC_Admin {
         add_settings_field( 'coc_api_key', __( 'API Key',     'courier-order-check' ), [ __CLASS__, 'render_api_key_field' ], 'courier-order-check', 'coc_main_section' );
         add_settings_field( 'coc_domain',  __( 'Your Domain', 'courier-order-check' ), [ __CLASS__, 'render_domain_field'  ], 'courier-order-check', 'coc_main_section' );
 
-        // Only register the rest when connected.
+        // Only register config pages when connected.
         if ( ! self::is_api_connected() ) {
             return;
         }
 
-        // ── Tracking Behaviour ───────────────────────────────────
-        register_setting( 'coc_settings_group', 'coc_purchase_on_complete', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        // ── Tracking Behaviour (coc-tracking page) ───────────────────
+        register_setting( 'coc_tracking_group', 'coc_purchase_on_complete',      [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field',   'default' => '' ] );
+        register_setting( 'coc_tracking_group', 'coc_order_lock_enabled',        [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field',   'default' => '' ] );
+        register_setting( 'coc_tracking_group', 'coc_order_lock_notice_text',    [ 'type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field', 'default' => '' ] );
+        register_setting( 'coc_tracking_group', 'coc_order_lock_block_text',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field', 'default' => '' ] );
 
-        add_settings_section(
-            'coc_tracking_behaviour_section',
-            __( 'Tracking Behaviour', 'courier-order-check' ),
-            [ __CLASS__, 'render_tracking_behaviour_desc' ],
-            'courier-order-check'
-        );
+        add_settings_section( 'coc_tracking_behaviour_section', __( 'Tracking Behaviour', 'courier-order-check' ), [ __CLASS__, 'render_tracking_behaviour_desc' ], 'coc-tracking' );
+        add_settings_field( 'coc_purchase_on_complete',   __( 'Purchase Event Trigger',       'courier-order-check' ), [ __CLASS__, 'render_purchase_on_complete_field'  ], 'coc-tracking', 'coc_tracking_behaviour_section' );
+        add_settings_field( 'coc_order_lock_enabled',     __( 'Order Lock',                   'courier-order-check' ), [ __CLASS__, 'render_order_lock_field'            ], 'coc-tracking', 'coc_tracking_behaviour_section' );
+        add_settings_field( 'coc_order_lock_notice_text', __( 'Order Lock — Notice Text',     'courier-order-check' ), [ __CLASS__, 'render_order_lock_notice_text_field' ], 'coc-tracking', 'coc_tracking_behaviour_section' );
+        add_settings_field( 'coc_order_lock_block_text',  __( 'Order Lock — Error Text',      'courier-order-check' ), [ __CLASS__, 'render_order_lock_block_text_field'  ], 'coc-tracking', 'coc_tracking_behaviour_section' );
 
-        add_settings_field( 'coc_purchase_on_complete', __( 'Purchase Event Trigger', 'courier-order-check' ), [ __CLASS__, 'render_purchase_on_complete_field' ], 'courier-order-check', 'coc_tracking_behaviour_section' );
+        // ── Meta Pixel (coc-meta page) ────────────────────────────────
+        register_setting( 'coc_meta_group', 'coc_pixel_id',        [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_meta_group', 'coc_pixel_token',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_meta_group', 'coc_pixel_test_code', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
 
-        // Google Tag Manager.
-        register_setting(
-            'coc_settings_group',
-            'coc_gtm_id',
-            [
-                'type'              => 'string',
-                'sanitize_callback' => [ __CLASS__, 'sanitize_gtm_id' ],
-                'default'           => '',
-            ]
-        );
+        add_settings_section( 'coc_pixel_section', __( 'Meta Pixel & Conversions API', 'courier-order-check' ), [ __CLASS__, 'render_pixel_section_desc' ], 'coc-meta' );
+        add_settings_field( 'coc_pixel_id',        __( 'Pixel ID',          'courier-order-check' ), [ __CLASS__, 'render_pixel_id_field'        ], 'coc-meta', 'coc_pixel_section' );
+        add_settings_field( 'coc_pixel_token',     __( 'CAPI Access Token', 'courier-order-check' ), [ __CLASS__, 'render_pixel_token_field'     ], 'coc-meta', 'coc_pixel_section' );
+        add_settings_field( 'coc_pixel_test_code', __( 'Test Event Code',   'courier-order-check' ), [ __CLASS__, 'render_pixel_test_code_field' ], 'coc-meta', 'coc_pixel_section' );
 
-        add_settings_section(
-            'coc_gtm_section',
-            __( 'Google Tag Manager', 'courier-order-check' ),
-            [ __CLASS__, 'render_gtm_section_desc' ],
-            'courier-order-check'
-        );
+        // ── TikTok Pixel (coc-tiktok page) ───────────────────────────
+        register_setting( 'coc_tiktok_group', 'coc_ttk_pixel_id',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_tiktok_group', 'coc_ttk_access_token', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_tiktok_group', 'coc_ttk_test_code',    [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
 
-        add_settings_field(
-            'coc_gtm_id',
-            __( 'Container ID', 'courier-order-check' ),
-            [ __CLASS__, 'render_gtm_id_field' ],
-            'courier-order-check',
-            'coc_gtm_section'
-        );
+        add_settings_section( 'coc_ttk_section', __( 'TikTok Pixel & Events API', 'courier-order-check' ), [ __CLASS__, 'render_ttk_section_desc' ], 'coc-tiktok' );
+        add_settings_field( 'coc_ttk_pixel_id',     __( 'Pixel ID',         'courier-order-check' ), [ __CLASS__, 'render_ttk_pixel_id_field'     ], 'coc-tiktok', 'coc_ttk_section' );
+        add_settings_field( 'coc_ttk_access_token', __( 'Events API Token', 'courier-order-check' ), [ __CLASS__, 'render_ttk_access_token_field' ], 'coc-tiktok', 'coc_ttk_section' );
+        add_settings_field( 'coc_ttk_test_code',    __( 'Test Event Code',  'courier-order-check' ), [ __CLASS__, 'render_ttk_test_code_field'    ], 'coc-tiktok', 'coc_ttk_section' );
 
-        // ── Meta Pixel + Conversions API ──────────────────────────────
-        register_setting( 'coc_settings_group', 'coc_pixel_id',        [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-        register_setting( 'coc_settings_group', 'coc_pixel_token',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-        register_setting( 'coc_settings_group', 'coc_pixel_test_code', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        // ── Google Analytics 4 (coc-ga4 page) ────────────────────────
+        register_setting( 'coc_ga4_group', 'coc_gaa_measurement_id', [ 'type' => 'string', 'sanitize_callback' => [ __CLASS__, 'sanitize_gaa_measurement_id' ], 'default' => '' ] );
+        register_setting( 'coc_ga4_group', 'coc_gaa_api_secret',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
 
-        add_settings_section(
-            'coc_pixel_section',
-            __( 'Meta Pixel & Conversions API', 'courier-order-check' ),
-            [ __CLASS__, 'render_pixel_section_desc' ],
-            'courier-order-check'
-        );
+        add_settings_section( 'coc_gaa_section', __( 'Google Analytics 4 & Measurement Protocol', 'courier-order-check' ), [ __CLASS__, 'render_gaa_section_desc' ], 'coc-ga4' );
+        add_settings_field( 'coc_gaa_measurement_id', __( 'Measurement ID', 'courier-order-check' ), [ __CLASS__, 'render_gaa_measurement_id_field' ], 'coc-ga4', 'coc_gaa_section' );
+        add_settings_field( 'coc_gaa_api_secret',     __( 'API Secret',     'courier-order-check' ), [ __CLASS__, 'render_gaa_api_secret_field'     ], 'coc-ga4', 'coc_gaa_section' );
 
-        add_settings_field( 'coc_pixel_id',        __( 'Pixel ID',              'courier-order-check' ), [ __CLASS__, 'render_pixel_id_field'        ], 'courier-order-check', 'coc_pixel_section' );
-        add_settings_field( 'coc_pixel_token',     __( 'CAPI Access Token',     'courier-order-check' ), [ __CLASS__, 'render_pixel_token_field'     ], 'courier-order-check', 'coc_pixel_section' );
-        add_settings_field( 'coc_pixel_test_code', __( 'Test Event Code',       'courier-order-check' ), [ __CLASS__, 'render_pixel_test_code_field' ], 'courier-order-check', 'coc_pixel_section' );
+        // ── Google Tag Manager (coc-gtm page) ────────────────────────
+        register_setting( 'coc_gtm_group', 'coc_gtm_id', [
+            'type'              => 'string',
+            'sanitize_callback' => [ __CLASS__, 'sanitize_gtm_id' ],
+            'default'           => '',
+        ] );
 
-        // ── TikTok Pixel + Events API ──────────────────────────────
-        register_setting( 'coc_settings_group', 'coc_ttk_pixel_id',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-        register_setting( 'coc_settings_group', 'coc_ttk_access_token', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-        register_setting( 'coc_settings_group', 'coc_ttk_test_code',    [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        add_settings_section( 'coc_gtm_section', __( 'Google Tag Manager', 'courier-order-check' ), [ __CLASS__, 'render_gtm_section_desc' ], 'coc-gtm' );
+        add_settings_field( 'coc_gtm_id', __( 'Container ID', 'courier-order-check' ), [ __CLASS__, 'render_gtm_id_field' ], 'coc-gtm', 'coc_gtm_section' );
 
-        add_settings_section(
-            'coc_ttk_section',
-            __( 'TikTok Pixel & Events API', 'courier-order-check' ),
-            [ __CLASS__, 'render_ttk_section_desc' ],
-            'courier-order-check'
-        );
+        // ── Facebook Product Catalog (coc-fb-catalog page) ───────────
+        register_setting( 'coc_fb_catalog_group', 'coc_fb_catalog_enabled',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_fb_catalog_group', 'coc_fb_catalog_condition',   [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'new' ] );
+        register_setting( 'coc_fb_catalog_group', 'coc_fb_catalog_include_oos', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
 
-        add_settings_field( 'coc_ttk_pixel_id',     __( 'Pixel ID',          'courier-order-check' ), [ __CLASS__, 'render_ttk_pixel_id_field'     ], 'courier-order-check', 'coc_ttk_section' );
-        add_settings_field( 'coc_ttk_access_token', __( 'Events API Token',  'courier-order-check' ), [ __CLASS__, 'render_ttk_access_token_field' ], 'courier-order-check', 'coc_ttk_section' );
-        add_settings_field( 'coc_ttk_test_code',    __( 'Test Event Code',   'courier-order-check' ), [ __CLASS__, 'render_ttk_test_code_field'    ], 'courier-order-check', 'coc_ttk_section' );
+        add_settings_section( 'coc_fb_catalog_section', __( 'Facebook Product Catalog', 'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_section_desc' ], 'coc-fb-catalog' );
+        add_settings_field( 'coc_fb_catalog_enabled',     __( 'Enable Feed',          'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_enabled_field'     ], 'coc-fb-catalog', 'coc_fb_catalog_section' );
+        add_settings_field( 'coc_fb_catalog_feed_url',    __( 'Feed URL',             'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_feed_url_field'    ], 'coc-fb-catalog', 'coc_fb_catalog_section' );
+        add_settings_field( 'coc_fb_catalog_condition',   __( 'Product Condition',    'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_condition_field'   ], 'coc-fb-catalog', 'coc_fb_catalog_section' );
+        add_settings_field( 'coc_fb_catalog_include_oos', __( 'Include Out-of-Stock', 'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_include_oos_field' ], 'coc-fb-catalog', 'coc_fb_catalog_section' );
 
-        // ── Google Analytics 4 + Measurement Protocol ─────────────────
-        register_setting( 'coc_settings_group', 'coc_gaa_measurement_id', [ 'type' => 'string', 'sanitize_callback' => [ __CLASS__, 'sanitize_gaa_measurement_id' ], 'default' => '' ] );
-        register_setting( 'coc_settings_group', 'coc_gaa_api_secret',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        // ── Pathao Courier (coc-pathao page) ─────────────────────────
+        register_setting( 'coc_pathao_group', 'coc_pathao_env',           [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'sandbox' ] );
+        register_setting( 'coc_pathao_group', 'coc_pathao_client_id',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_pathao_group', 'coc_pathao_client_secret', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_pathao_group', 'coc_pathao_username',      [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_pathao_group', 'coc_pathao_password',      [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_pathao_group', 'coc_pathao_store_id',      [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
 
-        add_settings_section(
-            'coc_gaa_section',
-            __( 'Google Analytics 4 & Measurement Protocol', 'courier-order-check' ),
-            [ __CLASS__, 'render_gaa_section_desc' ],
-            'courier-order-check'
-        );
+        add_settings_section( 'coc_pathao_section', __( 'Pathao Courier', 'courier-order-check' ), [ __CLASS__, 'render_pathao_section_desc' ], 'coc-pathao' );
+        add_settings_field( 'coc_pathao_env',           __( 'Environment',      'courier-order-check' ), [ __CLASS__, 'render_pathao_env_field'           ], 'coc-pathao', 'coc_pathao_section' );
+        add_settings_field( 'coc_pathao_client_id',     __( 'Client ID',        'courier-order-check' ), [ __CLASS__, 'render_pathao_client_id_field'     ], 'coc-pathao', 'coc_pathao_section' );
+        add_settings_field( 'coc_pathao_client_secret', __( 'Client Secret',    'courier-order-check' ), [ __CLASS__, 'render_pathao_client_secret_field' ], 'coc-pathao', 'coc_pathao_section' );
+        add_settings_field( 'coc_pathao_username',      __( 'Email / Username', 'courier-order-check' ), [ __CLASS__, 'render_pathao_username_field'      ], 'coc-pathao', 'coc_pathao_section' );
+        add_settings_field( 'coc_pathao_password',      __( 'Password',         'courier-order-check' ), [ __CLASS__, 'render_pathao_password_field'      ], 'coc-pathao', 'coc_pathao_section' );
+        add_settings_field( 'coc_pathao_connect',       __( 'Connect',          'courier-order-check' ), [ __CLASS__, 'render_pathao_connect_field'       ], 'coc-pathao', 'coc_pathao_section' );
+        add_settings_field( 'coc_pathao_store_id',      __( 'Default Store',    'courier-order-check' ), [ __CLASS__, 'render_pathao_store_id_field'      ], 'coc-pathao', 'coc_pathao_section' );
 
-        add_settings_field( 'coc_gaa_measurement_id', __( 'Measurement ID',  'courier-order-check' ), [ __CLASS__, 'render_gaa_measurement_id_field' ], 'courier-order-check', 'coc_gaa_section' );
-        add_settings_field( 'coc_gaa_api_secret',     __( 'API Secret',      'courier-order-check' ), [ __CLASS__, 'render_gaa_api_secret_field'     ], 'courier-order-check', 'coc_gaa_section' );
+        // ── Steadfast Courier (coc-steadfast page) ────────────────────
+        register_setting( 'coc_steadfast_group', 'coc_sf_api_key',        [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_steadfast_group', 'coc_sf_secret_key',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_steadfast_group', 'coc_sf_webhook_secret', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
 
-        // ── Facebook Product Catalog ────────────────────────────────
-        register_setting( 'coc_settings_group', 'coc_fb_catalog_enabled',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-        register_setting( 'coc_settings_group', 'coc_fb_catalog_condition',   [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'new' ] );
-        register_setting( 'coc_settings_group', 'coc_fb_catalog_include_oos', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-
-        add_settings_section(
-            'coc_fb_catalog_section',
-            __( 'Facebook Product Catalog', 'courier-order-check' ),
-            [ __CLASS__, 'render_fb_catalog_section_desc' ],
-            'courier-order-check'
-        );
-
-        add_settings_field( 'coc_fb_catalog_enabled',     __( 'Enable Feed',           'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_enabled_field'     ], 'courier-order-check', 'coc_fb_catalog_section' );
-        add_settings_field( 'coc_fb_catalog_feed_url',    __( 'Feed URL',              'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_feed_url_field'    ], 'courier-order-check', 'coc_fb_catalog_section' );
-        add_settings_field( 'coc_fb_catalog_condition',   __( 'Product Condition',     'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_condition_field'   ], 'courier-order-check', 'coc_fb_catalog_section' );
-        add_settings_field( 'coc_fb_catalog_include_oos', __( 'Include Out-of-Stock',  'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_include_oos_field' ], 'courier-order-check', 'coc_fb_catalog_section' );
-
-        // ── Pathao Courier ────────────────────────────────────────
-        register_setting( 'coc_settings_group', 'coc_pathao_env',            [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'sandbox' ] );
-        register_setting( 'coc_settings_group', 'coc_pathao_client_id',      [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-        register_setting( 'coc_settings_group', 'coc_pathao_client_secret',  [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-        register_setting( 'coc_settings_group', 'coc_pathao_username',       [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-        register_setting( 'coc_settings_group', 'coc_pathao_password',       [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-        register_setting( 'coc_settings_group', 'coc_pathao_store_id',       [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-
-        add_settings_section(
-            'coc_pathao_section',
-            __( 'Pathao Courier', 'courier-order-check' ),
-            [ __CLASS__, 'render_pathao_section_desc' ],
-            'courier-order-check'
-        );
-
-        add_settings_field( 'coc_pathao_env',           __( 'Environment',     'courier-order-check' ), [ __CLASS__, 'render_pathao_env_field'           ], 'courier-order-check', 'coc_pathao_section' );
-        add_settings_field( 'coc_pathao_client_id',     __( 'Client ID',       'courier-order-check' ), [ __CLASS__, 'render_pathao_client_id_field'     ], 'courier-order-check', 'coc_pathao_section' );
-        add_settings_field( 'coc_pathao_client_secret', __( 'Client Secret',   'courier-order-check' ), [ __CLASS__, 'render_pathao_client_secret_field' ], 'courier-order-check', 'coc_pathao_section' );
-        add_settings_field( 'coc_pathao_username',      __( 'Email / Username','courier-order-check' ), [ __CLASS__, 'render_pathao_username_field'      ], 'courier-order-check', 'coc_pathao_section' );
-        add_settings_field( 'coc_pathao_password',      __( 'Password',        'courier-order-check' ), [ __CLASS__, 'render_pathao_password_field'      ], 'courier-order-check', 'coc_pathao_section' );
-        add_settings_field( 'coc_pathao_connect',       __( 'Connect',         'courier-order-check' ), [ __CLASS__, 'render_pathao_connect_field'       ], 'courier-order-check', 'coc_pathao_section' );
-        add_settings_field( 'coc_pathao_store_id',      __( 'Default Store',   'courier-order-check' ), [ __CLASS__, 'render_pathao_store_id_field'      ], 'courier-order-check', 'coc_pathao_section' );
-
-        // ── Steadfast Courier ────────────────────────────────────────
-        register_setting( 'coc_settings_group', 'coc_sf_api_key',        [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-        register_setting( 'coc_settings_group', 'coc_sf_secret_key',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-        register_setting( 'coc_settings_group', 'coc_sf_webhook_secret', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
-
-        add_settings_section(
-            'coc_sf_section',
-            __( 'Steadfast Courier', 'courier-order-check' ),
-            [ __CLASS__, 'render_sf_section_desc' ],
-            'courier-order-check'
-        );
-
-        add_settings_field( 'coc_sf_api_key',        __( 'API Key',        'courier-order-check' ), [ __CLASS__, 'render_sf_api_key_field'        ], 'courier-order-check', 'coc_sf_section' );
-        add_settings_field( 'coc_sf_secret_key',     __( 'Secret Key',     'courier-order-check' ), [ __CLASS__, 'render_sf_secret_key_field'     ], 'courier-order-check', 'coc_sf_section' );
-        add_settings_field( 'coc_sf_webhook_secret', __( 'Webhook Secret', 'courier-order-check' ), [ __CLASS__, 'render_sf_webhook_secret_field' ], 'courier-order-check', 'coc_sf_section' );
-        add_settings_field( 'coc_sf_check',          __( 'Test / Balance', 'courier-order-check' ), [ __CLASS__, 'render_sf_check_field'         ], 'courier-order-check', 'coc_sf_section' );
+        add_settings_section( 'coc_sf_section', __( 'Steadfast Courier', 'courier-order-check' ), [ __CLASS__, 'render_sf_section_desc' ], 'coc-steadfast' );
+        add_settings_field( 'coc_sf_api_key',        __( 'API Key',        'courier-order-check' ), [ __CLASS__, 'render_sf_api_key_field'        ], 'coc-steadfast', 'coc_sf_section' );
+        add_settings_field( 'coc_sf_secret_key',     __( 'Secret Key',     'courier-order-check' ), [ __CLASS__, 'render_sf_secret_key_field'     ], 'coc-steadfast', 'coc_sf_section' );
+        add_settings_field( 'coc_sf_webhook_secret', __( 'Webhook Secret', 'courier-order-check' ), [ __CLASS__, 'render_sf_webhook_secret_field' ], 'coc-steadfast', 'coc_sf_section' );
+        add_settings_field( 'coc_sf_check',          __( 'Test / Balance', 'courier-order-check' ), [ __CLASS__, 'render_sf_check_field'         ], 'coc-steadfast', 'coc_sf_section' );
     }
 
     public static function sanitize_gtm_id( $value ) {
@@ -259,6 +234,30 @@ class COC_Admin {
         echo ' ' . esc_html__( 'Count Purchase only when order status changes to “Completed” (set by admin)', 'courier-order-check' );
         echo '</label>';
         echo '<p class="description">' . esc_html__( 'When ✔ active: the server-side Purchase event (Meta CAPI, TikTok Events API) fires when the admin marks the order as Completed. GTM / browser pixel fires if the customer revisits the order-received page after that point. When ✘ inactive (default): all platforms fire at the moment the order is placed.', 'courier-order-check' ) . '</p>';
+    }
+    public static function render_order_lock_field() {
+        $checked = get_option( 'coc_order_lock_enabled', '' ) ? 'checked' : '';
+        echo '<label>';
+        echo '<input type="checkbox" id="coc_order_lock_enabled" name="coc_order_lock_enabled" value="1" ' . $checked . ' />';
+        echo ' ' . esc_html__( 'Prevent customers from placing a new order while a previous order is still in &ldquo;Processing&rdquo; status', 'courier-order-check' );
+        echo '</label>';
+        echo '<p class="description">' . esc_html__( 'When ✔ active: a customer (logged-in or guest by phone) cannot check out if they already have a Processing order. Once an admin changes that order status (to Completed, Cancelled, etc.) the lock is lifted automatically.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_order_lock_notice_text_field() {
+        $default = 'You have an order (#{order_number}) that is currently being processed. You will be able to place a new order once your current order status is updated by our team.';
+        $val     = get_option( 'coc_order_lock_notice_text', '' );
+        echo '<textarea id="coc_order_lock_notice_text" name="coc_order_lock_notice_text" rows="3" class="large-text">' . esc_textarea( $val ) . '</textarea>';
+        echo '<p class="description">' . esc_html__( 'Notice shown at the top of the checkout page. Use {order_number} as a placeholder for the existing order number. Leave blank to use the default.', 'courier-order-check' ) . '</p>';
+        echo '<p class="description"><strong>' . esc_html__( 'Default:', 'courier-order-check' ) . '</strong> ' . esc_html( $default ) . '</p>';
+    }
+
+    public static function render_order_lock_block_text_field() {
+        $default = 'Your order (#{order_number}) is still being processed. Please wait until our team updates your order status before placing a new order.';
+        $val     = get_option( 'coc_order_lock_block_text', '' );
+        echo '<textarea id="coc_order_lock_block_text" name="coc_order_lock_block_text" rows="3" class="large-text">' . esc_textarea( $val ) . '</textarea>';
+        echo '<p class="description">' . esc_html__( 'Error shown when the customer tries to submit the checkout form. Use {order_number} as a placeholder. Leave blank to use the default.', 'courier-order-check' ) . '</p>';
+        echo '<p class="description"><strong>' . esc_html__( 'Default:', 'courier-order-check' ) . '</strong> ' . esc_html( $default ) . '</p>';
     }
 
     public static function render_gtm_section_desc() {
@@ -480,6 +479,7 @@ class COC_Admin {
         echo ' <button type="button" class="button" id="coc-pathao-load-stores-btn" data-nonce="' . esc_attr( $nonce ) . '">' . esc_html__( 'Load Stores', 'courier-order-check' ) . '</button>';
         echo '<p class="description">' . esc_html__( 'Selected store becomes the default pickup location on order panels.', 'courier-order-check' ) . '</p>';
     }
+
     /* ------------------------------------------------------------------
      * Connection gate helper
      * ------------------------------------------------------------------ */
@@ -531,6 +531,58 @@ class COC_Admin {
      * Settings page HTML
      * ------------------------------------------------------------------ */
 
+    /** Shared helper — wraps a settings form for a given option group + page slug. */
+    private static function render_config_page( $title, $option_group, $page_slug, $submit_label = null ) {
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            return;
+        }
+        $submit_label = $submit_label ?: __( 'Save Settings', 'courier-order-check' );
+        ?>
+        <div class="wrap coc-settings-wrap">
+            <h1><?php echo esc_html( $title ); ?></h1>
+            <form method="post" action="options.php">
+                <?php
+                settings_fields( $option_group );
+                do_settings_sections( $page_slug );
+                submit_button( $submit_label );
+                ?>
+            </form>
+        </div>
+        <?php
+    }
+
+    public static function render_page_tracking() {
+        self::render_config_page( __( 'Tracking Behaviour', 'courier-order-check' ), 'coc_tracking_group', 'coc-tracking' );
+    }
+
+    public static function render_page_meta() {
+        self::render_config_page( __( 'Meta Pixel & Conversions API', 'courier-order-check' ), 'coc_meta_group', 'coc-meta' );
+    }
+
+    public static function render_page_tiktok() {
+        self::render_config_page( __( 'TikTok Pixel & Events API', 'courier-order-check' ), 'coc_tiktok_group', 'coc-tiktok' );
+    }
+
+    public static function render_page_ga4() {
+        self::render_config_page( __( 'Google Analytics 4', 'courier-order-check' ), 'coc_ga4_group', 'coc-ga4' );
+    }
+
+    public static function render_page_gtm() {
+        self::render_config_page( __( 'Google Tag Manager', 'courier-order-check' ), 'coc_gtm_group', 'coc-gtm' );
+    }
+
+    public static function render_page_fb_catalog() {
+        self::render_config_page( __( 'Facebook Product Catalog', 'courier-order-check' ), 'coc_fb_catalog_group', 'coc-fb-catalog' );
+    }
+
+    public static function render_page_pathao() {
+        self::render_config_page( __( 'Pathao Courier', 'courier-order-check' ), 'coc_pathao_group', 'coc-pathao' );
+    }
+
+    public static function render_page_steadfast() {
+        self::render_config_page( __( 'Steadfast Courier', 'courier-order-check' ), 'coc_steadfast_group', 'coc-steadfast' );
+    }
+
     public static function render_settings_page() {
         if ( ! current_user_can( 'manage_woocommerce' ) ) {
             return;
@@ -566,7 +618,6 @@ class COC_Admin {
             <form method="post" action="options.php">
                 <?php
                 settings_fields( 'coc_settings_group' );
-                // Always show only the API section here.
                 do_settings_sections( 'courier-order-check' );
                 submit_button( __( 'Save Settings', 'courier-order-check' ) );
                 ?>
@@ -645,8 +696,21 @@ class COC_Admin {
         $css_ver = file_exists( COC_PLUGIN_DIR . 'assets/css/admin.css' ) ? filemtime( COC_PLUGIN_DIR . 'assets/css/admin.css' ) : COC_VERSION;
         $js_ver  = file_exists( COC_PLUGIN_DIR . 'assets/js/admin.js' )  ? filemtime( COC_PLUGIN_DIR . 'assets/js/admin.js' )  : COC_VERSION;
 
-        // Settings page.
-        if ( 'toplevel_page_courier-order-check' === $hook ) {
+        // All GrowEver admin pages that need CSS + JS.
+        $growever_hooks = [
+            'toplevel_page_courier-order-check',
+            'growever_page_coc-tracking',
+            'growever_page_coc-meta',
+            'growever_page_coc-tiktok',
+            'growever_page_coc-ga4',
+            'growever_page_coc-gtm',
+            'growever_page_coc-fb-catalog',
+            'growever_page_coc-pathao',
+            'growever_page_coc-steadfast',
+            'growever_page_coc-ip-blocklist',
+        ];
+
+        if ( in_array( $hook, $growever_hooks, true ) ) {
             wp_enqueue_style( 'coc-admin', COC_PLUGIN_URL . 'assets/css/admin.css', [], $css_ver );
             wp_enqueue_script( 'coc-admin', COC_PLUGIN_URL . 'assets/js/admin.js', [ 'jquery' ], $js_ver, true );
             wp_localize_script( 'coc-admin', 'COC', [
@@ -656,21 +720,6 @@ class COC_Admin {
                 'pathao_nonce' => wp_create_nonce( 'coc_pathao' ),
                 'sf_nonce'     => wp_create_nonce( 'coc_steadfast' ),
                 'l10n'         => [
-                    'testing'  => __( 'Testing…', 'courier-order-check' ),
-                    'test_btn' => __( 'Test Connection', 'courier-order-check' ),
-                ],
-            ] );
-        }
-
-        // IP Blocklist page.
-        if ( 'growever_page_coc-ip-blocklist' === $hook ) {
-            wp_enqueue_style( 'coc-admin', COC_PLUGIN_URL . 'assets/css/admin.css', [], $css_ver );
-            wp_enqueue_script( 'coc-admin', COC_PLUGIN_URL . 'assets/js/admin.js', [ 'jquery' ], $js_ver, true );
-            wp_localize_script( 'coc-admin', 'COC', [
-                'ajax_url' => admin_url( 'admin-ajax.php' ),
-                'nonce'    => wp_create_nonce( 'coc_test_connection' ),
-                'ip_nonce' => wp_create_nonce( 'coc_ip_block' ),
-                'l10n'     => [
                     'testing'  => __( 'Testing…', 'courier-order-check' ),
                     'test_btn' => __( 'Test Connection', 'courier-order-check' ),
                 ],

@@ -47,6 +47,7 @@ function coc_init() {
     require_once COC_PLUGIN_DIR . 'includes/class-coc-api.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-admin.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-order-meta.php';
+    require_once COC_PLUGIN_DIR . 'includes/class-coc-order-lock.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-ip-blocker.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-gtm.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-meta-pixel.php';
@@ -59,6 +60,9 @@ function coc_init() {
 
     COC_Admin::init();
     COC_Order_Meta::init();
+    if ( get_option( 'coc_order_lock_enabled', '' ) ) {
+        COC_Order_Lock::init();
+    }
     COC_IP_Blocker::init();
     COC_GTM::init();
     COC_Meta_Pixel::init();

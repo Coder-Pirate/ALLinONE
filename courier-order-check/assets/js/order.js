@@ -142,5 +142,63 @@
             } );
         } );
 
+        /* ============================================================
+           Orders list — auto-load success ratio mini bars
+           ============================================================ */
+
+        var $ratios = $( '.coc-mini-ratio[data-phone]' );
+
+        if ( $ratios.length ) {
+            // Collect unique phones to avoid duplicate AJAX calls.
+            var seen = {};
+
+            $ratios.each( function () {
+                var phone = $( this ).data( 'phone' );
+                if ( ! phone || seen[ phone ] ) { return; }
+                seen[ phone ] = true;
+
+                ( function ( ph ) {
+                    $.post(
+                        COC_ORDER.ajax_url,
+                        { action: 'coc_courier_check', nonce: COC_ORDER.nonce, phone: ph },
+                        function ( response ) {
+                            var $cells = $( '.coc-mini-ratio[data-phone="' + ph + '"]' );
+
+                            if (
+                                ! response.success ||
+                                ! response.data    ||
+                                ! response.data.data ||
+                                ! response.data.data.summary
+                            ) {
+                                $cells.html( '<span class="coc-mini-err">&mdash;</span>' );
+                                return;
+                            }
+
+                            var s   = response.data.data.summary;
+                            var sr  = parseFloat( s.success_ratio ) || 0;
+                            var sr0 = Math.round( sr );
+                            var tot = parseInt( s.total_parcel, 10 ) || 0;
+                            var cls = sr >= 80 ? 'coc-mini-bar--green' :
+                                      ( sr >= 60 ? 'coc-mini-bar--orange' : 'coc-mini-bar--red' );
+
+                            var html =
+                                '<div class="coc-mini-bar-wrap">' +
+                                    '<div class="coc-mini-bar-fill ' + cls + '" style="width:' + sr.toFixed( 1 ) + '%"></div>' +
+                                '</div>' +
+                                '<div class="coc-mini-bar-label">' +
+                                    '<strong>' + sr0 + '%</strong>' +
+                                    ' <small class="coc-mini-total">/ ' + tot.toLocaleString() + ' orders</small>' +
+                                '</div>';
+
+                            $cells.addClass( 'is-loaded' ).html( html );
+                        }
+                    ).fail( function () {
+                        $( '.coc-mini-ratio[data-phone="' + ph + '"]' )
+                            .html( '<span class="coc-mini-err">&mdash;</span>' );
+                    } );
+                } )( phone );
+            } );
+        }
+
     } );
 }( jQuery ) );

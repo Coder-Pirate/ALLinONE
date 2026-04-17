@@ -522,6 +522,44 @@ body .coc-bar-red    { background: linear-gradient(90deg, #dc2626, #ef4444); }
     margin-top: 4px;
 }
 
+/* ── Location bar (auto-detected city / zone / area) ── */
+.coc-pathao-location-bar {
+    padding: 7px 10px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #15803d;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.coc-pathao-location-bar .coc-mini-spinner {
+    border-top-color: #15803d;
+    flex-shrink: 0;
+}
+a.coc-pathao-loc-edit {
+    font-size: 12px;
+    color: #6b7280;
+    text-decoration: underline;
+    margin-left: auto;
+    white-space: nowrap;
+}
+a.coc-pathao-loc-edit:hover {
+    color: #111827;
+}
+.coc-pathao-loc-selects {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+.coc-pathao-loc-selects select {
+    flex: 1;
+    min-width: 130px;
+}
+
 .coc-pathao-btns {
     display: flex;
     gap: 10px;
@@ -817,4 +855,76 @@ body .coc-bar-red    { background: linear-gradient(90deg, #dc2626, #ef4444); }
     background: #2563eb !important;
     border-color: #2563eb !important;
     color: #fff !important;
+}
+
+/* =========================================================
+   Orders list — Success Ratio mini progress bar
+   ========================================================= */
+
+/* Column width hint */
+.column-coc_success_ratio {
+    width: 130px;
+}
+
+/* Wrapper */
+.coc-mini-ratio {
+    min-width: 100px;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* Spinner shown while AJAX is loading */
+.coc-mini-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #e5e5e5;
+    border-top-color: #22c55e;
+    border-radius: 50%;
+    animation: coc-spin .7s linear infinite;
+    vertical-align: middle;
+}
+
+/* Progress bar track */
+.coc-mini-bar-wrap {
+    height: 8px;
+    background: #e9e9e9;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+/* Progress bar fill */
+.coc-mini-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width .4s ease;
+}
+
+.coc-mini-bar--green  { background: linear-gradient(90deg, #16a34a, #22c55e); }
+.coc-mini-bar--orange { background: linear-gradient(90deg, #d97706, #f59e0b); }
+.coc-mini-bar--red    { background: linear-gradient(90deg, #dc2626, #ef4444); }
+
+/* Label row: "75%  / 120 orders" */
+.coc-mini-bar-label {
+    color: #374151;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.coc-mini-bar-label strong {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1d2327;
+}
+
+.coc-mini-total {
+    color: #9ca3af;
+}
+
+/* No phone / error states */
+.coc-mini-no-phone,
+.coc-mini-err {
+    color: #d1d5db;
+    font-size: 14px;
 }

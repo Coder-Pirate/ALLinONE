@@ -313,11 +313,18 @@ ttq.load('<?php echo $pid; ?>');
             return;
         }
 
-        $page_url = ( is_ssl() ? 'https' : 'http' ) . '://' .
-                    sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ?? '' ) ) .
-                    sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) );
-
-        $referrer = sanitize_text_field( wp_unslash( $_SERVER['HTTP_REFERER'] ?? '' ) );
+        // In admin context use the store home URL, not the wp-admin URL.
+        if ( is_admin() ) {
+            $page_url = $order instanceof WC_Order
+                ? $order->get_checkout_order_received_url()
+                : home_url( '/' );
+            $referrer = home_url( '/' );
+        } else {
+            $page_url = ( is_ssl() ? 'https' : 'http' ) . '://' .
+                        sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ?? '' ) ) .
+                        sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) );
+            $referrer = sanitize_text_field( wp_unslash( $_SERVER['HTTP_REFERER'] ?? '' ) );
+        }
 
         $user = $order instanceof WC_Order
             ? self::user_data_from_order( $order )
@@ -354,8 +361,8 @@ ttq.load('<?php echo $pid; ?>');
                     'Content-Type' => 'application/json',
                 ],
                 'body'        => wp_json_encode( $body ),
-                'timeout'     => 5,
-                'blocking'    => false,
+                'timeout'     => 10,
+                'blocking'    => is_admin(),
                 'data_format' => 'body',
             ]
         );

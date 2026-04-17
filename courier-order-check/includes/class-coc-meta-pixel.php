@@ -311,7 +311,7 @@ class COC_Meta_Pixel {
             'currency'     => $order->get_currency(),
         ];
 
-        self::send_capi( 'Purchase', $cdata, $eid, self::user_data_from_order( $order ) );
+        self::send_capi( 'Purchase', $cdata, $eid, self::user_data_from_order( $order ), $order->get_checkout_order_received_url() );
     }
 
     /**
@@ -421,7 +421,7 @@ class COC_Meta_Pixel {
      * Conversions API (server-side, own server → Meta Graph API)
      * ------------------------------------------------------------------ */
 
-    private static function send_capi( $event_name, array $custom_data, $eid, array $user_data = [] ) {
+    private static function send_capi( $event_name, array $custom_data, $eid, array $user_data = [], $source_url = '' ) {
         $pixel_id = trim( get_option( 'coc_pixel_id', '' ) );
         $token    = trim( get_option( 'coc_pixel_token', '' ) );
         if ( empty( $pixel_id ) || empty( $token ) ) {
@@ -430,13 +430,23 @@ class COC_Meta_Pixel {
 
         $merged_user = array_merge( self::current_user_data(), $user_data );
 
+        // In admin context the request URI is a wp-admin URL — use the passed
+        // source URL (order permalink) or fall back to the store home URL.
+        if ( ! $source_url ) {
+            if ( is_admin() ) {
+                $source_url = home_url( '/' );
+            } else {
+                $source_url = ( is_ssl() ? 'https' : 'http' ) . '://' .
+                              sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ?? '' ) ) .
+                              sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) );
+            }
+        }
+
         $event = [
             'event_name'       => $event_name,
             'event_time'       => time(),
             'event_id'         => $eid,
-            'event_source_url' => ( is_ssl() ? 'https' : 'http' ) . '://' .
-                                  sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ?? '' ) ) .
-                                  sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ?? '' ) ),
+            'event_source_url' => $source_url,
             'action_source'    => 'website',
             'user_data'        => $merged_user,
         ];
@@ -457,12 +467,12 @@ class COC_Meta_Pixel {
 
         $endpoint = 'https://graph.facebook.com/v19.0/' . rawurlencode( $pixel_id ) . '/events';
 
-        // Non-blocking: fire-and-forget so it never slows down page load.
+        // Use blocking in admin context so the request completes before PHP exits.
         wp_remote_post( $endpoint, [
             'headers'     => [ 'Content-Type' => 'application/json' ],
             'body'        => wp_json_encode( $body ),
-            'timeout'     => 5,
-            'blocking'    => false,
+            'timeout'     => 10,
+            'blocking'    => is_admin(),
             'data_format' => 'body',
         ] );
     }

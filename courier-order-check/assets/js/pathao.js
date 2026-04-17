@@ -54,80 +54,36 @@
             return;
         }
 
-        var $storeSelect   = $( '#coc-pathao-store' );
-        var $citySelect    = $( '#coc-pathao-city' );
-        var $zoneSelect    = $( '#coc-pathao-zone' );
-        var $areaSelect    = $( '#coc-pathao-area' );
-        var $deliveryType  = $( '#coc-pathao-delivery-type' );
-        var $itemType      = $( '#coc-pathao-item-type' );
-        var $weight        = $( '#coc-pathao-weight' );
-        var $qty           = $( '#coc-pathao-qty' );
-        var $recipName     = $( '#coc-pathao-recipient-name' );
-        var $recipPhone    = $( '#coc-pathao-recipient-phone' );
-        var $recipAddr     = $( '#coc-pathao-recipient-address' );
-        var $cod           = $( '#coc-pathao-cod' );
-        var $instruction   = $( '#coc-pathao-instruction' );
-        var $description   = $( '#coc-pathao-description' );
-        var $priceBtn      = $( '#coc-pathao-price-btn' );
-        var $submitBtn     = $( '#coc-pathao-submit-btn' );
-        var $priceResult   = $( '#coc-pathao-price-result' );
-        var $priceValue    = $( '#coc-pathao-price-value' );
+        var $storeSelect  = $( '#coc-pathao-store' );
+        var $deliveryType = $( '#coc-pathao-delivery-type' );
+        var $itemType     = $( '#coc-pathao-item-type' );
+        var $weight       = $( '#coc-pathao-weight' );
+        var $qty          = $( '#coc-pathao-qty' );
+        var $recipName    = $( '#coc-pathao-recipient-name' );
+        var $recipPhone   = $( '#coc-pathao-recipient-phone' );
+        var $recipAddr    = $( '#coc-pathao-recipient-address' );
+        var $cod          = $( '#coc-pathao-cod' );
+        var $instruction  = $( '#coc-pathao-instruction' );
+        var $description  = $( '#coc-pathao-description' );
+        var $priceBtn     = $( '#coc-pathao-price-btn' );
+        var $submitBtn    = $( '#coc-pathao-submit-btn' );
+        var $priceResult  = $( '#coc-pathao-price-result' );
+        var $priceValue   = $( '#coc-pathao-price-value' );
 
         /* ---- Load stores ---- */
         post( 'coc_pathao_get_stores', {}, function ( stores ) {
             fillSelect( $storeSelect, stores, 'store_id', 'store_name', '— Select store —' );
-            if ( defaultStore ) {
-                $storeSelect.val( defaultStore );
-            }
+            if ( defaultStore ) { $storeSelect.val( defaultStore ); }
         }, function ( err ) {
             $storeSelect.html( '<option value="">— ' + err + ' —</option>' );
         } );
 
-        /* ---- Load cities ---- */
-        post( 'coc_pathao_get_cities', {}, function ( cities ) {
-            fillSelect( $citySelect, cities, 'city_id', 'city_name', '— Select city —' );
-        }, function () {
-            $citySelect.html( '<option value="">— Could not load cities —</option>' );
-        } );
-
-        /* ---- City → Zone ---- */
-        $citySelect.on( 'change', function () {
-            var cityId = $( this ).val();
-            $zoneSelect.prop( 'disabled', true ).html( '<option value="">— Loading… —</option>' );
-            $areaSelect.prop( 'disabled', true ).html( '<option value="">— Select area —</option>' );
-
-            if ( ! cityId ) { return; }
-
-            post( 'coc_pathao_get_zones', { city_id: cityId }, function ( zones ) {
-                fillSelect( $zoneSelect, zones, 'zone_id', 'zone_name', '— Select zone —' );
-                $zoneSelect.prop( 'disabled', false );
-            }, function ( err ) {
-                $zoneSelect.html( '<option value="">— ' + err + ' —</option>' ).prop( 'disabled', false );
-            } );
-        } );
-
-        /* ---- Zone → Area ---- */
-        $zoneSelect.on( 'change', function () {
-            var zoneId = $( this ).val();
-            $areaSelect.prop( 'disabled', true ).html( '<option value="">— Loading… —</option>' );
-            if ( ! zoneId ) { return; }
-
-            post( 'coc_pathao_get_areas', { zone_id: zoneId }, function ( areas ) {
-                fillSelect( $areaSelect, areas, 'area_id', 'area_name', '— Select area —' );
-                $areaSelect.prop( 'disabled', false );
-            }, function ( err ) {
-                $areaSelect.html( '<option value="">— ' + err + ' —</option>' ).prop( 'disabled', false );
-            } );
-        } );
-
         /* ---- Check Price ---- */
         $priceBtn.on( 'click', function () {
-            var storeId  = $storeSelect.val();
-            var cityId   = $citySelect.val();
-            var zoneId   = $zoneSelect.val();
+            var storeId = $storeSelect.val();
 
-            if ( ! storeId || ! cityId || ! zoneId ) {
-                showMsg( 'Select store, city and zone first.', 'err' );
+            if ( ! storeId ) {
+                showMsg( 'Please select a store.', 'err' );
                 return;
             }
             hideMsg();
@@ -138,8 +94,6 @@
                 item_type     : $itemType.val(),
                 delivery_type : $deliveryType.val(),
                 item_weight   : $weight.val(),
-                recipient_city: cityId,
-                recipient_zone: zoneId,
             }, function ( data ) {
                 $priceValue.text( '৳ ' + data.final_price );
                 $priceResult.show();
@@ -172,9 +126,6 @@
                 recipient_name      : name,
                 recipient_phone     : phone,
                 recipient_address   : addr,
-                recipient_city      : $citySelect.val(),
-                recipient_zone      : $zoneSelect.val(),
-                recipient_area      : $areaSelect.val(),
                 delivery_type       : $deliveryType.val(),
                 item_type           : $itemType.val(),
                 item_quantity       : $qty.val(),

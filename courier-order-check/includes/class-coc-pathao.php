@@ -329,12 +329,10 @@ class COC_Pathao {
             'item_type'      => absint( $_POST['item_type']      ?? 2 ),
             'delivery_type'  => absint( $_POST['delivery_type']  ?? 48 ),
             'item_weight'    => (float) ( $_POST['item_weight']   ?? 0.5 ),
-            'recipient_city' => absint( $_POST['recipient_city'] ?? 0 ),
-            'recipient_zone' => absint( $_POST['recipient_zone'] ?? 0 ),
         ];
 
-        if ( ! $data['store_id'] || ! $data['recipient_city'] || ! $data['recipient_zone'] ) {
-            wp_send_json_error( [ 'message' => 'store_id, recipient_city and recipient_zone are required.' ] );
+        if ( ! $data['store_id'] ) {
+            wp_send_json_error( [ 'message' => 'store_id is required.' ] );
         }
 
         $r = self::price_plan( $data );
@@ -557,27 +555,7 @@ class COC_Pathao {
                         <input type="text" id="coc-pathao-recipient-address" value="<?php echo esc_attr( $billing_address ); ?>" />
                     </div>
 
-                    <!-- Row 4: City → Zone → Area -->
-                    <div class="coc-pathao-row coc-pathao-row--3">
-                        <div>
-                            <label for="coc-pathao-city"><?php esc_html_e( 'City', 'courier-order-check' ); ?></label>
-                            <select id="coc-pathao-city">
-                                <option value=""><?php esc_html_e( '— Select city —', 'courier-order-check' ); ?></option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="coc-pathao-zone"><?php esc_html_e( 'Zone', 'courier-order-check' ); ?></label>
-                            <select id="coc-pathao-zone" disabled>
-                                <option value=""><?php esc_html_e( '— Select zone —', 'courier-order-check' ); ?></option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="coc-pathao-area"><?php esc_html_e( 'Area', 'courier-order-check' ); ?></label>
-                            <select id="coc-pathao-area" disabled>
-                                <option value=""><?php esc_html_e( '— Select area —', 'courier-order-check' ); ?></option>
-                            </select>
-                        </div>
-                    </div>
+
 
                     <!-- Row 5: Delivery type, Item type, Weight, Quantity -->
                     <div class="coc-pathao-row coc-pathao-row--4">

@@ -13,6 +13,12 @@ class COC_Order_Meta {
 
         add_action( 'admin_enqueue_scripts',     [ __CLASS__, 'enqueue_order_assets' ] );
         add_action( 'wp_ajax_coc_courier_check', [ __CLASS__, 'ajax_courier_check' ] );
+
+        // Orders list — success ratio column (classic + HPOS).
+        add_filter( 'manage_edit-shop_order_columns',                  [ __CLASS__, 'add_orders_column' ] );
+        add_action( 'manage_shop_order_posts_custom_column',           [ __CLASS__, 'render_orders_column_classic' ], 10, 2 );
+        add_filter( 'manage_woocommerce_page_wc-orders_columns',       [ __CLASS__, 'add_orders_column' ] );
+        add_action( 'manage_woocommerce_page_wc-orders_custom_column', [ __CLASS__, 'render_orders_column_hpos' ], 10, 2 );
     }
 
     /* ------------------------------------------------------------------
@@ -20,14 +26,18 @@ class COC_Order_Meta {
      * ------------------------------------------------------------------ */
 
     public static function enqueue_order_assets( $hook ) {
-        // Load on any admin page that could be an order edit screen.
+        // Detect classic orders list (edit.php?post_type=shop_order).
+        $screen          = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+        $is_classic_list = $screen && 'edit-shop_order' === $screen->id;
+
+        // Load on order edit screens and the orders list.
         $allowed_hooks = [
             'post.php',
             'post-new.php',
             'woocommerce_page_wc-orders',
         ];
 
-        if ( ! in_array( $hook, $allowed_hooks, true ) ) {
+        if ( ! $is_classic_list && ! in_array( $hook, $allowed_hooks, true ) ) {
             return;
         }
 
@@ -194,5 +204,100 @@ class COC_Order_Meta {
             $phone = '0' . substr( $phone, 3 );
         }
         return $phone;
+    }
+
+    /* ------------------------------------------------------------------
+     * Orders list — Success Ratio column
+     * ------------------------------------------------------------------ */
+
+    /**
+     * Adds the "Success Ratio" column to both classic and HPOS orders lists.
+     */
+    public static function add_orders_column( $columns ) {
+        if ( ! get_option( 'coc_api_connected', '' ) ) {
+            return $columns;
+        }
+
+        $new = [];
+        foreach ( $columns as $key => $label ) {
+            $new[ $key ] = $label;
+            // Insert right after the Status column.
+            if ( 'order_status' === $key ) {
+                $new['coc_success_ratio'] = __( 'Success Ratio', 'courier-order-check' );
+            }
+        }
+
+        // Fallback: append at the end if order_status column wasn't found.
+        if ( ! isset( $new['coc_success_ratio'] ) ) {
+            $new['coc_success_ratio'] = __( 'Success Ratio', 'courier-order-check' );
+        }
+
+        return $new;
+    }
+
+    /** Classic orders list custom column renderer. */
+    public static function render_orders_column_classic( $column, $post_id ) {
+        if ( 'coc_success_ratio' !== $column ) {
+            return;
+        }
+        $order = wc_get_order( $post_id );
+        if ( $order ) {
+            self::render_ratio_cell( $order );
+        }
+    }
+
+    /** HPOS orders list custom column renderer. */
+    public static function render_orders_column_hpos( $column, $order ) {
+        if ( 'coc_success_ratio' !== $column ) {
+            return;
+        }
+        if ( $order instanceof WC_Abstract_Order ) {
+            self::render_ratio_cell( $order );
+        }
+    }
+
+    /** Outputs the mini progress bar placeholder for a single order row. */
+    private static function render_ratio_cell( WC_Abstract_Order $order ) {
+        $phone = self::extract_phone( $order );
+
+        if ( ! $phone ) {
+            echo '<span class="coc-mini-no-phone">&mdash;</span>';
+            return;
+        }
+
+        // Check transient — render instantly if data is already cached.
+        $cached = get_transient( 'coc_ratio_' . md5( $phone ) );
+        if ( $cached && isset( $cached['data']['summary'] ) ) {
+            $s  = $cached['data']['summary'];
+            $sr = round( (float) ( $s['success_ratio'] ?? 0 ), 1 );
+            self::render_mini_bar_html( $sr, (int) ( $s['total_parcel'] ?? 0 ) );
+            return;
+        }
+
+        // Not cached — output placeholder; JS will fetch via AJAX.
+        printf(
+            '<div class="coc-mini-ratio" data-phone="%s"><span class="coc-mini-spinner"></span></div>',
+            esc_attr( $phone )
+        );
+    }
+
+    /** Renders the final mini bar HTML (used for both cached and AJAX-rendered output). */
+    private static function render_mini_bar_html( $sr, $total ) {
+        $cr  = max( 0, 100 - $sr );
+        $cls = $sr >= 80 ? 'coc-mini-bar--green' : ( $sr >= 60 ? 'coc-mini-bar--orange' : 'coc-mini-bar--red' );
+        printf(
+            '<div class="coc-mini-ratio is-loaded">' .
+            '<div class="coc-mini-bar-wrap">' .
+            '<div class="coc-mini-bar-fill %s" style="width:%.1f%%"></div>' .
+            '</div>' .
+            '<div class="coc-mini-bar-label">' .
+            '<strong>%s%%</strong> <small class="coc-mini-total">/ %s orders</small>' .
+            '</div>' .
+            '</div>',
+            esc_attr( $cls ),
+            $sr,
+            esc_html( number_format( $sr, 0 ) ),
+            esc_html( number_format( $total ) )
+        );
     }
 }
