@@ -51,6 +51,7 @@ function coc_init() {
     require_once COC_PLUGIN_DIR . 'includes/class-coc-gtm.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-meta-pixel.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-tiktok-pixel.php';
+    require_once COC_PLUGIN_DIR . 'includes/class-coc-gaa.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-fb-catalog.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-pathao.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-steadfast.php';
@@ -62,6 +63,7 @@ function coc_init() {
     COC_GTM::init();
     COC_Meta_Pixel::init();
     COC_TikTok_Pixel::init();
+    COC_GAA::init();
     COC_FB_Catalog::init();
     COC_Pathao::init();
     COC_Steadfast::init();
@@ -106,6 +108,8 @@ register_activation_hook( __FILE__, function () {
     add_option( 'coc_ttk_pixel_id',     '' );
     add_option( 'coc_ttk_access_token', '' );
     add_option( 'coc_ttk_test_code',           '' );
+    add_option( 'coc_gaa_measurement_id', '' );
+    add_option( 'coc_gaa_api_secret',     '' );
     add_option( 'coc_purchase_on_complete',      '' );
     add_option( 'coc_fb_catalog_enabled',         '' );
     add_option( 'coc_fb_catalog_condition',     'new' );

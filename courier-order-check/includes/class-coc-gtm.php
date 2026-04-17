@@ -278,7 +278,16 @@ class COC_GTM {
             $items[]       = $item;
         }
 
-        self::push_datalayer( 'purchase', [
+        // Include persisted attribution data so server-side GTM tags can forward
+        // fbp/fbc to Meta CAPI, ttp to TikTok Events API, and ga_client_id to GA4 MP.
+        $attribution = array_filter( [
+            'fbp'          => (string) $order->get_meta( '_coc_fbp' ),
+            'fbc'          => (string) $order->get_meta( '_coc_fbc' ),
+            'ttp'          => (string) $order->get_meta( '_coc_ttp' ),
+            'ga_client_id' => (string) $order->get_meta( '_coc_ga_client_id' ),
+        ] );
+
+        $ecommerce = [
             'transaction_id' => (string) $order->get_order_number(),
             'value'          => (float) $order->get_total(),
             'tax'            => (float) $order->get_total_tax(),
@@ -286,7 +295,13 @@ class COC_GTM {
             'currency'       => $order->get_currency(),
             'coupon'         => implode( ',', $order->get_coupon_codes() ),
             'items'          => $items,
-        ] );
+        ];
+
+        if ( ! empty( $attribution ) ) {
+            $ecommerce['attribution'] = $attribution;
+        }
+
+        self::push_datalayer( 'purchase', $ecommerce );
     }
 
     /* ------------------------------------------------------------------

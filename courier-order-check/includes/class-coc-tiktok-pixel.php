@@ -16,6 +16,9 @@ class COC_TikTok_Pixel {
     /** event_id for last AJAX add-to-cart — returned in WC fragment. */
     private static $last_atc_eid = '';
 
+    /** PageView event_id — generated at head injection, consumed in fire_page_events for dedup. */
+    private static $page_view_eid = '';
+
     /* ------------------------------------------------------------------
      * Bootstrap
      * ------------------------------------------------------------------ */
@@ -54,13 +57,14 @@ class COC_TikTok_Pixel {
 
     public static function inject_head() {
         $pid = esc_js( trim( get_option( 'coc_ttk_pixel_id', '' ) ) );
+        // Generate PageView event_id now so browser and Events API share the same id.
+        self::$page_view_eid = self::make_eid( 'pv_' );
         // phpcs:disable WordPress.WP.EnqueuedResources.NonEnqueuedScript
         ?>
 <!-- TikTok Pixel Code -->
 <script>
 !function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=document.createElement("script");n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
 ttq.load('<?php echo $pid; ?>');
-ttq.page();
 }(window,document,'ttq');
 </script>
 <!-- End TikTok Pixel Code -->
@@ -84,8 +88,10 @@ ttq.page();
      * ------------------------------------------------------------------ */
 
     public static function fire_page_events() {
-        // CAPI PageView for every page.
-        self::send_events_api( 'PageView', [], self::make_eid( 'pv_' ) );
+        // PageView — same event_id in browser (ttq.track) and Events API (deduplication).
+        $pv_eid = self::$page_view_eid ?: self::make_eid( 'pv_' );
+        self::send_events_api( 'PageView', [], $pv_eid );
+        self::browser_event( 'PageView', [], $pv_eid );
 
         if ( is_product() ) {
             self::event_view_content();
@@ -238,6 +244,7 @@ ttq.page();
 
         $eid = self::make_eid( 'pur_' );
         $order->update_meta_data( '_coc_ttk_purchase_eid', $eid );
+        self::save_attribution_to_order( $order );
         $order->save();
 
         self::send_events_api( 'PlaceAnOrder', self::order_props( $order ), $eid, $order );
@@ -407,9 +414,25 @@ ttq.page();
             $ud['email'] = self::sha256( $order->get_billing_email() );
         }
 
-        $phone = preg_replace( '/[^0-9]/', '', $order->get_billing_phone() );
+        // Phone normalized to E.164 format before hashing (improves event match quality).
+        $phone = self::normalize_phone( $order->get_billing_phone(), $order->get_billing_country() );
         if ( $phone ) {
             $ud['phone_number'] = self::sha256( $phone );
+        }
+
+        // external_id for registered customers improves cross-device match quality.
+        if ( $order->get_customer_id() && empty( $ud['external_id'] ) ) {
+            $ud['external_id'] = self::sha256( (string) $order->get_customer_id() );
+        }
+
+        // Attribution cookies persisted at checkout — used in admin context.
+        $ttp = (string) $order->get_meta( '_coc_ttp' );
+        if ( $ttp && empty( $ud['ttp'] ) ) {
+            $ud['ttp'] = $ttp;
+        }
+        $ttclid = (string) $order->get_meta( '_coc_ttclid' );
+        if ( $ttclid && empty( $ud['ttclid'] ) ) {
+            $ud['ttclid'] = $ttclid;
         }
 
         return $ud;
@@ -501,6 +524,92 @@ ttq.page();
 
     private static function make_eid( $prefix = '' ) {
         return $prefix . uniqid( '', true );
+    }
+
+    /**
+     * Persist TikTok attribution cookies to order meta at checkout time.
+     * Called during hook_purchase (customer's browser request) so values remain
+     * available when hook_purchase_on_complete fires in admin context.
+     */
+    private static function save_attribution_to_order( WC_Order $order ) {
+        if ( isset( $_COOKIE['_ttp'] ) ) {
+            $order->update_meta_data( '_coc_ttp', sanitize_text_field( wp_unslash( $_COOKIE['_ttp'] ) ) );
+        }
+        // ttclid from cookie (set by TikTok pixel JS) or direct URL parameter.
+        $ttclid = '';
+        if ( isset( $_COOKIE['ttclid'] ) ) {
+            $ttclid = sanitize_text_field( wp_unslash( $_COOKIE['ttclid'] ) );
+        } elseif ( ! empty( $_GET['ttclid'] ) ) {
+            $ttclid = sanitize_text_field( wp_unslash( $_GET['ttclid'] ) );
+        }
+        if ( $ttclid ) {
+            $order->update_meta_data( '_coc_ttclid', $ttclid );
+        }
+    }
+
+    /**
+     * Normalize a raw phone number to E.164 format for hashing.
+     *
+     * @param string $raw            Raw phone from WooCommerce billing field.
+     * @param string $billing_country ISO-3166-1 alpha-2 country code (e.g. 'BD').
+     * @return string E.164 string or digits-only fallback.
+     */
+    private static function normalize_phone( $raw, $billing_country = '' ) {
+        $phone = trim( (string) $raw );
+        if ( '' === $phone ) {
+            return '';
+        }
+        $has_plus = ( '+' === substr( $phone, 0, 1 ) );
+        $digits   = preg_replace( '/[^0-9]/', '', $phone );
+        if ( '' === $digits ) {
+            return '';
+        }
+        if ( $has_plus ) {
+            return '+' . $digits;
+        }
+        if ( $billing_country ) {
+            $code = self::country_calling_code( $billing_country );
+            if ( $code ) {
+                $local = ltrim( $digits, '0' );
+                if ( '' !== $local ) {
+                    return '+' . $code . $local;
+                }
+            }
+        }
+        return $digits;
+    }
+
+    /**
+     * Map ISO-3166-1 alpha-2 country code → ITU country calling code.
+     *
+     * @param  string $iso2  e.g. 'BD', 'US', 'GB'
+     * @return string Calling code digits, e.g. '880', or '' if unknown.
+     */
+    private static function country_calling_code( $iso2 ) {
+        $map = [
+            'AF' => '93',  'AL' => '355', 'DZ' => '213', 'AO' => '244',
+            'AR' => '54',  'AU' => '61',  'AT' => '43',  'AZ' => '994',
+            'BD' => '880', 'BE' => '32',  'BR' => '55',  'BG' => '359',
+            'KH' => '855', 'CM' => '237', 'CA' => '1',   'CL' => '56',
+            'CN' => '86',  'CO' => '57',  'HR' => '385', 'CZ' => '420',
+            'DK' => '45',  'EG' => '20',  'ET' => '251', 'FI' => '358',
+            'FR' => '33',  'GH' => '233', 'DE' => '49',  'GR' => '30',
+            'HK' => '852', 'HU' => '36',  'IN' => '91',  'ID' => '62',
+            'IR' => '98',  'IQ' => '964', 'IE' => '353', 'IL' => '972',
+            'IT' => '39',  'JP' => '81',  'JO' => '962', 'KZ' => '7',
+            'KE' => '254', 'KR' => '82',  'KW' => '965', 'LK' => '94',
+            'LB' => '961', 'LY' => '218', 'MY' => '60',  'MX' => '52',
+            'MA' => '212', 'MM' => '95',  'NP' => '977', 'NL' => '31',
+            'NZ' => '64',  'NG' => '234', 'NO' => '47',  'PK' => '92',
+            'PH' => '63',  'PL' => '48',  'PT' => '351', 'QA' => '974',
+            'RO' => '40',  'RU' => '7',   'SA' => '966', 'SN' => '221',
+            'SG' => '65',  'ZA' => '27',  'ES' => '34',  'SE' => '46',
+            'CH' => '41',  'TW' => '886', 'TZ' => '255', 'TH' => '66',
+            'TR' => '90',  'UA' => '380', 'AE' => '971', 'GB' => '44',
+            'US' => '1',   'UG' => '256', 'VN' => '84',  'YE' => '967',
+            'ZM' => '260', 'ZW' => '263',
+        ];
+        return $map[ strtoupper( (string) $iso2 ) ] ?? '';
     }
 
     private static function sha256( $value ) {

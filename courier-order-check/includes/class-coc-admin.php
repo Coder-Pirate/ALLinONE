@@ -150,6 +150,20 @@ class COC_Admin {
         add_settings_field( 'coc_ttk_access_token', __( 'Events API Token',  'courier-order-check' ), [ __CLASS__, 'render_ttk_access_token_field' ], 'courier-order-check', 'coc_ttk_section' );
         add_settings_field( 'coc_ttk_test_code',    __( 'Test Event Code',   'courier-order-check' ), [ __CLASS__, 'render_ttk_test_code_field'    ], 'courier-order-check', 'coc_ttk_section' );
 
+        // ── Google Analytics 4 + Measurement Protocol ─────────────────
+        register_setting( 'coc_settings_group', 'coc_gaa_measurement_id', [ 'type' => 'string', 'sanitize_callback' => [ __CLASS__, 'sanitize_gaa_measurement_id' ], 'default' => '' ] );
+        register_setting( 'coc_settings_group', 'coc_gaa_api_secret',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+
+        add_settings_section(
+            'coc_gaa_section',
+            __( 'Google Analytics 4 & Measurement Protocol', 'courier-order-check' ),
+            [ __CLASS__, 'render_gaa_section_desc' ],
+            'courier-order-check'
+        );
+
+        add_settings_field( 'coc_gaa_measurement_id', __( 'Measurement ID',  'courier-order-check' ), [ __CLASS__, 'render_gaa_measurement_id_field' ], 'courier-order-check', 'coc_gaa_section' );
+        add_settings_field( 'coc_gaa_api_secret',     __( 'API Secret',      'courier-order-check' ), [ __CLASS__, 'render_gaa_api_secret_field'     ], 'courier-order-check', 'coc_gaa_section' );
+
         // ── Facebook Product Catalog ────────────────────────────────
         register_setting( 'coc_settings_group', 'coc_fb_catalog_enabled',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
         register_setting( 'coc_settings_group', 'coc_fb_catalog_condition',   [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'new' ] );
@@ -221,8 +235,21 @@ class COC_Admin {
         return $value;
     }
 
+    public static function sanitize_gaa_measurement_id( $value ) {
+        $value = strtoupper( sanitize_text_field( $value ) );
+        if ( ! empty( $value ) && ! preg_match( '/^G-[A-Z0-9]+$/', $value ) ) {
+            add_settings_error(
+                'coc_gaa_measurement_id',
+                'invalid_gaa_measurement_id',
+                __( 'Invalid GA4 Measurement ID. Expected format: G-XXXXXXXXXX', 'courier-order-check' )
+            );
+            return get_option( 'coc_gaa_measurement_id', '' );
+        }
+        return $value;
+    }
+
     public static function render_tracking_behaviour_desc() {
-        echo '<p>' . esc_html__( 'Controls when the Purchase conversion event is sent to GTM, Meta, and TikTok.', 'courier-order-check' ) . '</p>';
+        echo '<p>' . esc_html__( 'Controls when the Purchase conversion event is sent to GTM, Meta, TikTok, and GA4.', 'courier-order-check' ) . '</p>';
     }
 
     public static function render_purchase_on_complete_field() {
@@ -289,6 +316,26 @@ class COC_Admin {
         $val = esc_attr( get_option( 'coc_ttk_test_code', '' ) );
         echo '<input type="text" id="coc_ttk_test_code" name="coc_ttk_test_code" class="regular-text" value="' . $val . '" placeholder="TEST_CODE" />';
         echo '<p class="description">' . esc_html__( 'Optional. From TikTok Events Manager → Test Events. Remove after testing.', 'courier-order-check' ) . '</p>';
+    }
+
+    /* ------------------------------------------------------------------
+     * GA4 field renderers
+     * ------------------------------------------------------------------ */
+
+    public static function render_gaa_section_desc() {
+        echo '<p>' . esc_html__( 'gtag.js (browser) + GA4 Measurement Protocol (server-side, sent directly from your server). Key events fire from both sides using the same client_id for accurate session stitching.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_gaa_measurement_id_field() {
+        $val = esc_attr( get_option( 'coc_gaa_measurement_id', '' ) );
+        echo '<input type="text" id="coc_gaa_measurement_id" name="coc_gaa_measurement_id" class="regular-text" value="' . $val . '" placeholder="G-XXXXXXXXXX" />';
+        echo '<p class="description">' . esc_html__( 'Your GA4 Measurement ID from Google Analytics → Admin → Data Streams → select stream → Measurement ID.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_gaa_api_secret_field() {
+        $val = esc_attr( get_option( 'coc_gaa_api_secret', '' ) );
+        echo '<input type="password" id="coc_gaa_api_secret" name="coc_gaa_api_secret" class="regular-text" value="' . $val . '" autocomplete="new-password" />';
+        echo '<p class="description">' . esc_html__( 'Measurement Protocol API Secret from Google Analytics → Admin → Data Streams → select stream → Measurement Protocol → Create.', 'courier-order-check' ) . '</p>';
     }
 
     /* ------------------------------------------------------------------
