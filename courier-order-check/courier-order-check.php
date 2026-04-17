@@ -57,6 +57,7 @@ function coc_init() {
     require_once COC_PLUGIN_DIR . 'includes/class-coc-pathao.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-steadfast.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-print-invoice.php';
+    require_once COC_PLUGIN_DIR . 'includes/class-coc-cod-restriction.php';
 
     COC_Admin::init();
     COC_Order_Meta::init();
@@ -72,6 +73,9 @@ function coc_init() {
     COC_Pathao::init();
     COC_Steadfast::init();
     COC_Print_Invoice::init();
+    if ( get_option( 'coc_cod_restrict_enabled', '' ) ) {
+        COC_COD_Restriction::init();
+    }
 }
 add_action( 'plugins_loaded', 'coc_init' );
 

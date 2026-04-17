@@ -55,8 +55,9 @@ class COC_Admin {
             [ 'coc-ga4',        __( 'Google Analytics',   'courier-order-check' ), 'render_page_ga4'        ],
             [ 'coc-gtm',        __( 'Google Tag Manager', 'courier-order-check' ), 'render_page_gtm'        ],
             [ 'coc-fb-catalog', __( 'FB Catalog',         'courier-order-check' ), 'render_page_fb_catalog' ],
-            [ 'coc-pathao',     __( 'Pathao Courier',     'courier-order-check' ), 'render_page_pathao'     ],
-            [ 'coc-steadfast',  __( 'Steadfast Courier',  'courier-order-check' ), 'render_page_steadfast'  ],
+            [ 'coc-pathao',       __( 'Pathao Courier',     'courier-order-check' ), 'render_page_pathao'        ],
+            [ 'coc-steadfast',    __( 'Steadfast Courier',  'courier-order-check' ), 'render_page_steadfast'     ],
+            [ 'coc-cod-restrict', __( 'COD Restriction',    'courier-order-check' ), 'render_page_cod_restrict'  ],
         ];
 
         foreach ( $submenus as [ $slug, $title, $callback ] ) {
@@ -195,6 +196,22 @@ class COC_Admin {
         add_settings_field( 'coc_sf_secret_key',     __( 'Secret Key',     'courier-order-check' ), [ __CLASS__, 'render_sf_secret_key_field'     ], 'coc-steadfast', 'coc_sf_section' );
         add_settings_field( 'coc_sf_webhook_secret', __( 'Webhook Secret', 'courier-order-check' ), [ __CLASS__, 'render_sf_webhook_secret_field' ], 'coc-steadfast', 'coc_sf_section' );
         add_settings_field( 'coc_sf_check',          __( 'Test / Balance', 'courier-order-check' ), [ __CLASS__, 'render_sf_check_field'         ], 'coc-steadfast', 'coc_sf_section' );
+
+        // ── COD Restriction (coc-cod-restrict page) ───────────────────
+        register_setting( 'coc_cod_restrict_group', 'coc_cod_restrict_enabled',   [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field',    'default' => '' ] );
+        register_setting( 'coc_cod_restrict_group', 'coc_cod_restrict_threshold', [ 'type' => 'integer', 'sanitize_callback' => 'absint',                'default' => 60 ] );
+        register_setting( 'coc_cod_restrict_group', 'coc_cod_payment_number',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field',    'default' => '' ] );
+        register_setting( 'coc_cod_restrict_group', 'coc_cod_payment_direction',  [ 'type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field', 'default' => '' ] );
+        register_setting( 'coc_cod_restrict_group', 'coc_cod_ineligible_msg',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field', 'default' => '' ] );
+        register_setting( 'coc_cod_restrict_group', 'coc_cod_panel_note',         [ 'type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field', 'default' => '' ] );
+
+        add_settings_section( 'coc_cod_restrict_section', __( 'COD Restriction Settings', 'courier-order-check' ), [ __CLASS__, 'render_cod_restrict_section_desc' ], 'coc-cod-restrict' );
+        add_settings_field( 'coc_cod_restrict_enabled',   __( 'Enable COD Restriction',   'courier-order-check' ), [ __CLASS__, 'render_cod_restrict_enabled_field'   ], 'coc-cod-restrict', 'coc_cod_restrict_section' );
+        add_settings_field( 'coc_cod_restrict_threshold', __( 'Success Rate Threshold',   'courier-order-check' ), [ __CLASS__, 'render_cod_restrict_threshold_field' ], 'coc-cod-restrict', 'coc_cod_restrict_section' );
+        add_settings_field( 'coc_cod_ineligible_msg',     __( 'Ineligibility Notice',     'courier-order-check' ), [ __CLASS__, 'render_cod_ineligible_msg_field'     ], 'coc-cod-restrict', 'coc_cod_restrict_section' );
+        add_settings_field( 'coc_cod_panel_note',         __( 'Payment Panel Note',       'courier-order-check' ), [ __CLASS__, 'render_cod_panel_note_field'         ], 'coc-cod-restrict', 'coc_cod_restrict_section' );
+        add_settings_field( 'coc_cod_payment_number',     __( 'Payment Account Number',   'courier-order-check' ), [ __CLASS__, 'render_cod_payment_number_field'     ], 'coc-cod-restrict', 'coc_cod_restrict_section' );
+        add_settings_field( 'coc_cod_payment_direction',  __( 'Payment Instructions',     'courier-order-check' ), [ __CLASS__, 'render_cod_payment_direction_field'  ], 'coc-cod-restrict', 'coc_cod_restrict_section' );
     }
 
     public static function sanitize_gtm_id( $value ) {
@@ -581,6 +598,60 @@ class COC_Admin {
 
     public static function render_page_steadfast() {
         self::render_config_page( __( 'Steadfast Courier', 'courier-order-check' ), 'coc_steadfast_group', 'coc-steadfast' );
+    }
+
+    public static function render_page_cod_restrict() {
+        self::render_config_page( __( 'COD Restriction', 'courier-order-check' ), 'coc_cod_restrict_group', 'coc-cod-restrict' );
+    }
+
+    public static function render_cod_restrict_section_desc() {
+        echo '<p>' . esc_html__( 'Automatically disable Cash on Delivery for customers whose courier success rate falls below the threshold. They will be shown a payment panel to upload advance payment proof.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_cod_restrict_enabled_field() {
+        $checked = get_option( 'coc_cod_restrict_enabled', '' ) ? 'checked' : '';
+        echo '<label>';
+        echo '<input type="checkbox" id="coc_cod_restrict_enabled" name="coc_cod_restrict_enabled" value="1" ' . $checked . ' />';
+        echo ' ' . esc_html__( 'Enable COD Restriction based on courier success rate', 'courier-order-check' );
+        echo '</label>';
+    }
+
+    public static function render_cod_restrict_threshold_field() {
+        $current = (int) get_option( 'coc_cod_restrict_threshold', 60 );
+        echo '<select id="coc_cod_restrict_threshold" name="coc_cod_restrict_threshold">';
+        for ( $val = 10; $val <= 100; $val += 10 ) {
+            echo '<option value="' . esc_attr( $val ) . '"' . selected( $current, $val, false ) . '>' . esc_html( $val ) . '%</option>';
+        }
+        echo '</select>';
+        echo '<p class="description">' . esc_html__( 'Customers with a success rate below this percentage will be blocked from COD.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_cod_payment_number_field() {
+        $val = esc_attr( get_option( 'coc_cod_payment_number', '' ) );
+        echo '<input type="text" id="coc_cod_payment_number" name="coc_cod_payment_number" class="regular-text" value="' . $val . '" placeholder="01XXXXXXXXX" />';
+        echo '<p class="description">' . esc_html__( 'bKash / Nagad / Rocket number customers should send payment to. Displayed prominently in the payment panel.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_cod_payment_direction_field() {
+        $val = get_option( 'coc_cod_payment_direction', '' );
+        echo '<textarea id="coc_cod_payment_direction" name="coc_cod_payment_direction" rows="3" class="large-text">' . esc_textarea( $val ) . '</textarea>';
+        echo '<p class="description">' . esc_html__( 'Sub-text shown below the "Send to:" line. E.g. "Send payment and enter details below:".', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_cod_ineligible_msg_field() {
+        $val     = get_option( 'coc_cod_ineligible_msg', '' );
+        $default = 'You are not eligible for Cash on Delivery due to your low delivery success rate. Please make an advance payment to place your order.';
+        echo '<textarea id="coc_cod_ineligible_msg" name="coc_cod_ineligible_msg" rows="3" class="large-text">' . esc_textarea( $val ) . '</textarea>';
+        echo '<p class="description">' . esc_html__( 'Notice shown above the checkout form when COD is blocked (orange/red box). Leave blank to use the default.', 'courier-order-check' ) . '</p>';
+        echo '<p class="description"><strong>' . esc_html__( 'Default:', 'courier-order-check' ) . '</strong> ' . esc_html( $default ) . '</p>';
+    }
+
+    public static function render_cod_panel_note_field() {
+        $val     = get_option( 'coc_cod_panel_note', '' );
+        $default = 'You are not eligible for Cash on Delivery. Please pay in advance using the account below and upload your payment screenshot to complete your order.';
+        echo '<textarea id="coc_cod_panel_note" name="coc_cod_panel_note" rows="3" class="large-text">' . esc_textarea( $val ) . '</textarea>';
+        echo '<p class="description">' . esc_html__( 'Custom text shown inside the blue payment panel. Leave blank to use the default.', 'courier-order-check' ) . '</p>';
+        echo '<p class="description"><strong>' . esc_html__( 'Default:', 'courier-order-check' ) . '</strong> ' . esc_html( $default ) . '</p>';
     }
 
     public static function render_settings_page() {
