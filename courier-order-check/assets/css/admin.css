@@ -1,0 +1,347 @@
+/* =========================================================
+   Courier Order Check — Admin Styles
+   ========================================================= */
+
+/* ── Settings page ───────────────────────────────────────── */
+.coc-settings-wrap { max-width: 760px; }
+.coc-intro         { color: #555; margin-bottom: 1.5em; }
+
+.coc-test-result {
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* ── IP Blocklist — settings page ───────────────────────── */
+.coc-ip-add-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.coc-ip-add-btn {
+    background: #dc2626 !important;
+    color: #fff !important;
+    border-color: #b91c1c !important;
+    font-weight: 700 !important;
+    padding: 0 18px !important;
+    height: 32px;
+    border-radius: 6px !important;
+    cursor: pointer;
+}
+.coc-ip-add-btn:hover { background: #b91c1c !important; }
+
+.coc-ip-msg {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 4px;
+}
+.coc-ip-msg--ok  { color: #15803d; background: #dcfce7; }
+.coc-ip-msg--err { color: #b91c1c; background: #fee2e2; }
+
+.coc-ip-table { margin-top: 4px !important; }
+
+.coc-ip-table th {
+    font-weight: 700;
+    background: #f6f6f6;
+}
+
+.coc-ip-empty {
+    color: #888;
+    font-style: italic;
+    padding: 12px 16px !important;
+}
+
+.coc-ip-code {
+    font-family: monospace;
+    background: #f0f0f0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #1d2327;
+}
+
+/* ── IP bar — order detail page ─────────────────────────── */
+body .coc-ip-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #f9f9f9;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+}
+
+body .coc-ip-bar--blocked {
+    background: #fff5f5;
+    border-color: #fca5a5;
+}
+
+body .coc-ip-label {
+    flex: 1;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+body .coc-ip-status {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+body .coc-ip-status--blocked {
+    background: #dc2626;
+    color: #fff;
+}
+
+body .coc-ip-toggle-btn {
+    padding: 5px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: opacity .15s, transform .1s;
+}
+body .coc-ip-toggle-btn:hover  { opacity: .88; transform: translateY(-1px); }
+body .coc-ip-toggle-btn:active { transform: translateY(0); }
+
+body .coc-ip-toggle-btn--block {
+    background: #dc2626;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(220,38,38,.35);
+}
+body .coc-ip-toggle-btn--unblock {
+    background: #22c55e;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(34,197,94,.35);
+}
+
+
+.coc-test-result.is-success {
+    background: #edfaed;
+    border-left: 4px solid #46b450;
+    color: #1a5c1f;
+}
+.coc-test-result.is-error {
+    background: #fdf0f0;
+    border-left: 4px solid #d63638;
+    color: #6d1111;
+}
+
+/* ── Shared notice styles ─────────────────────────────────── */
+.coc-no-phone,
+.coc-warning,
+.coc-error {
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    margin: 6px 0;
+}
+.coc-no-phone { background: #f7f7f7; color: #555; }
+.coc-warning  { background: #fff8e5; color: #7a5c00; border-left: 3px solid #f0b849; }
+.coc-error    { background: #fdf0f0; color: #6d1111; border-left: 3px solid #d63638; }
+
+/* =========================================================
+   Order detail — Courier Check Panel
+   ========================================================= */
+
+/* Card wrapper injected after the Shipping section */
+.coc-wrapper {
+    clear: both;
+    width: 100%;
+    margin-top: 24px;
+    padding: 20px 20px 16px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body .coc-section-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1d2327;
+    margin: 0 0 16px;
+    padding: 0 0 12px;
+    border-bottom: 2px solid #f0f0f0;
+    letter-spacing: .01em;
+}
+
+body .coc-check-panel {
+    width: 100%;
+}
+
+/* ── Search row ─────────────────────────────────────────── */
+body .coc-search-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+body .coc-phone-input {
+    flex: 1;
+    height: 44px;
+    padding: 0 16px;
+    font-size: 14px;
+    border: 1.5px solid #d0d5dd;
+    border-radius: 10px;
+    outline: none;
+    color: #1d2327;
+    background: #fafafa;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,.04);
+    transition: border-color .15s, box-shadow .15s;
+    box-sizing: border-box;
+}
+body .coc-phone-input:focus {
+    border-color: #22c55e;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(34,197,94,.12);
+}
+
+body .coc-search-btn {
+    height: 44px;
+    padding: 0 26px;
+    background: #22c55e;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: .02em;
+    box-shadow: 0 2px 6px rgba(34,197,94,.35);
+    transition: background .15s, box-shadow .15s, transform .1s;
+    white-space: nowrap;
+}
+body .coc-search-btn:hover:not(:disabled) {
+    background: #16a34a;
+    box-shadow: 0 4px 10px rgba(34,197,94,.4);
+    transform: translateY(-1px);
+}
+body .coc-search-btn:active:not(:disabled) { transform: translateY(0); }
+body .coc-search-btn:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+
+/* ── Loading ────────────────────────────────────────────── */
+body .coc-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #888;
+    font-size: 13px;
+    padding: 12px 0;
+}
+
+body .coc-spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid #e5e5e5;
+    border-top-color: #22c55e;
+    border-radius: 50%;
+    animation: coc-spin .7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes coc-spin { to { transform: rotate(360deg); } }
+
+/* ── Courier table ──────────────────────────────────────── */
+body .coc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    margin-bottom: 16px;
+    border: 1px solid #ebebeb;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+body .coc-table thead tr {
+    background: #f6f6f6;
+}
+
+body .coc-table th {
+    text-align: left;
+    padding: 11px 16px;
+    font-weight: 700;
+    font-size: 13px;
+    color: #374151;
+    border-bottom: 2px solid #e8e8e8;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+body .coc-table tbody tr {
+    border-bottom: 1px solid #f2f2f2;
+    transition: background .1s;
+}
+body .coc-table tbody tr:hover    { background: #f9fffe; }
+body .coc-table tbody tr:last-child { border-bottom: none; }
+
+body .coc-table td {
+    padding: 10px 16px;
+    color: #374151;
+    font-size: 13.5px;
+}
+
+body .coc-table td:first-child { font-weight: 600; color: #1d2327; }
+
+body .coc-td-success { color: #15803d !important; font-weight: 700 !important; }
+body .coc-td-cancel  { color: #b91c1c !important; font-weight: 700 !important; }
+
+/* ── Summary badges ─────────────────────────────────────── */
+body .coc-badges-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+body .coc-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 22px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0,0,0,.12);
+    letter-spacing: .02em;
+}
+
+body .coc-badge-total   { background: #6b7280; }
+body .coc-badge-success { background: #22c55e; box-shadow: 0 2px 8px rgba(34,197,94,.35); }
+body .coc-badge-cancel  { background: #ef4444; box-shadow: 0 2px 8px rgba(239,68,68,.3); }
+
+/* ── Full-width ratio bar ───────────────────────────────── */
+body .coc-ratio-full-bar {
+    width: 100%;
+    padding: 13px 0;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: .04em;
+    box-shadow: 0 3px 10px rgba(0,0,0,.12);
+    text-shadow: 0 1px 2px rgba(0,0,0,.15);
+}
+
+body .coc-bar-green  { background: linear-gradient(90deg, #16a34a, #22c55e); }
+body .coc-bar-orange { background: linear-gradient(90deg, #d97706, #f59e0b); }
+body .coc-bar-red    { background: linear-gradient(90deg, #dc2626, #ef4444); }
