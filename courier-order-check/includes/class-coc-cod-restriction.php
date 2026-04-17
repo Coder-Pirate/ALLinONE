@@ -126,12 +126,11 @@ class COC_COD_Restriction {
             return;
         }
 
-        // Only deduct if the customer's phone is restricted.
-        $phone = WC()->session ? (string) WC()->session->get( 'billing_phone', '' ) : '';
-        if ( ! $phone && ! empty( $_POST['billing_phone'] ) ) {
-            $phone = sanitize_text_field( wp_unslash( $_POST['billing_phone'] ) );
-        }
-        if ( ! self::is_restricted( $phone ) ) {
+        // Only deduct if the customer's phone is flagged as restricted.
+        // The phone is stored in session by ajax_check() so it is available
+        // during update_checkout AJAX where $_POST fields are serialized.
+        $phone = WC()->session ? (string) WC()->session->get( 'coc_cod_restricted_phone', '' ) : '';
+        if ( empty( $phone ) ) {
             return;
         }
 
@@ -153,9 +152,20 @@ class COC_COD_Restriction {
             ? sanitize_text_field( wp_unslash( $_POST['phone'] ) )
             : '';
 
-        wp_send_json_success( [
-            'restricted' => self::is_restricted( $phone ),
-        ] );
+        $restricted = self::is_restricted( $phone );
+
+        // Persist phone in session so apply_cart_fee() can access it
+        // during the update_checkout AJAX (where $_POST fields are not available).
+        if ( WC()->session ) {
+            if ( $restricted ) {
+                WC()->session->set( 'coc_cod_restricted_phone', $phone );
+            } else {
+                WC()->session->set( 'coc_cod_restricted_phone', '' );
+                WC()->session->set( 'coc_cod_advance_amount', 0 );
+            }
+        }
+
+        wp_send_json_success( [ 'restricted' => $restricted ] );
     }
 
     /* ------------------------------------------------------------------
