@@ -2,7 +2,7 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Registers the plugin settings page under WooCommerce > Courier Check.
+ * Registers the plugin settings page under WooCommerce > GrowEver.
  */
 class COC_Admin {
 
@@ -10,7 +10,11 @@ class COC_Admin {
         add_action( 'admin_menu',           [ __CLASS__, 'add_menu' ] );
         add_action( 'admin_init',           [ __CLASS__, 'register_settings' ] );
         add_action( 'admin_enqueue_scripts',[ __CLASS__, 'enqueue_assets' ] );
-        add_action( 'wp_ajax_coc_test_connection', [ __CLASS__, 'ajax_test_connection' ] );
+        add_action( 'wp_ajax_coc_test_connection',           [ __CLASS__, 'ajax_test_connection' ] );
+        add_action( 'wp_ajax_coc_disconnect',                 [ __CLASS__, 'ajax_disconnect' ] );
+        add_action( 'wp_ajax_coc_pathao_admin_connect',     [ __CLASS__, 'ajax_pathao_admin_connect' ] );
+        add_action( 'wp_ajax_coc_pathao_admin_get_stores',  [ __CLASS__, 'ajax_pathao_admin_get_stores' ] );
+        add_action( 'wp_ajax_coc_sf_admin_check',           [ __CLASS__, 'ajax_sf_admin_check' ] );
     }
 
     /* ------------------------------------------------------------------
@@ -18,13 +22,35 @@ class COC_Admin {
      * ------------------------------------------------------------------ */
 
     public static function add_menu() {
+        // Top-level GrowEver menu.
+        add_menu_page(
+            __( 'GrowEver', 'courier-order-check' ),
+            __( 'GrowEver', 'courier-order-check' ),
+            'manage_woocommerce',
+            'courier-order-check',
+            [ __CLASS__, 'render_settings_page' ],
+            'dashicons-chart-bar',
+            56
+        );
+
+        // First submenu entry mirrors the parent (Settings).
         add_submenu_page(
-            'woocommerce',
-            __( 'Courier Order Check', 'courier-order-check' ),
-            __( 'Courier Check', 'courier-order-check' ),
+            'courier-order-check',
+            __( 'GrowEver Settings', 'courier-order-check' ),
+            __( 'Settings', 'courier-order-check' ),
             'manage_woocommerce',
             'courier-order-check',
             [ __CLASS__, 'render_settings_page' ]
+        );
+
+        // IP Blocklist as a child of GrowEver.
+        add_submenu_page(
+            'courier-order-check',
+            __( 'IP Blocklist', 'courier-order-check' ),
+            __( 'IP Blocklist', 'courier-order-check' ),
+            'manage_woocommerce',
+            'coc-ip-blocklist',
+            [ __CLASS__, 'render_ip_blocklist_page' ]
         );
     }
 
@@ -33,82 +59,425 @@ class COC_Admin {
      * ------------------------------------------------------------------ */
 
     public static function register_settings() {
-        register_setting(
-            'coc_settings_group',
-            'coc_api_key',
-            [
-                'type'              => 'string',
-                'sanitize_callback' => 'sanitize_text_field',
-                'default'           => '',
-            ]
+        // ── API Configuration ───────────────────────────────────────
+        register_setting( 'coc_settings_group', 'coc_api_key', [
+            'type'              => 'string',
+            'sanitize_callback' => [ __CLASS__, 'sanitize_api_key' ],
+            'default'           => '',
+        ] );
+        register_setting( 'coc_settings_group', 'coc_domain', [
+            'type'              => 'string',
+            'sanitize_callback' => [ __CLASS__, 'sanitize_domain' ],
+            'default'           => '',
+        ] );
+
+        add_settings_section( 'coc_main_section', __( 'API Configuration', 'courier-order-check' ), '__return_false', 'courier-order-check' );
+        add_settings_field( 'coc_api_key', __( 'API Key',     'courier-order-check' ), [ __CLASS__, 'render_api_key_field' ], 'courier-order-check', 'coc_main_section' );
+        add_settings_field( 'coc_domain',  __( 'Your Domain', 'courier-order-check' ), [ __CLASS__, 'render_domain_field'  ], 'courier-order-check', 'coc_main_section' );
+
+        // Only register the rest when connected.
+        if ( ! self::is_api_connected() ) {
+            return;
+        }
+
+        // ── Tracking Behaviour ───────────────────────────────────
+        register_setting( 'coc_settings_group', 'coc_purchase_on_complete', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+
+        add_settings_section(
+            'coc_tracking_behaviour_section',
+            __( 'Tracking Behaviour', 'courier-order-check' ),
+            [ __CLASS__, 'render_tracking_behaviour_desc' ],
+            'courier-order-check'
         );
 
+        add_settings_field( 'coc_purchase_on_complete', __( 'Purchase Event Trigger', 'courier-order-check' ), [ __CLASS__, 'render_purchase_on_complete_field' ], 'courier-order-check', 'coc_tracking_behaviour_section' );
+
+        // Google Tag Manager.
         register_setting(
             'coc_settings_group',
-            'coc_domain',
+            'coc_gtm_id',
             [
                 'type'              => 'string',
-                'sanitize_callback' => [ __CLASS__, 'sanitize_domain' ],
+                'sanitize_callback' => [ __CLASS__, 'sanitize_gtm_id' ],
                 'default'           => '',
             ]
         );
 
         add_settings_section(
-            'coc_main_section',
-            __( 'API Configuration', 'courier-order-check' ),
-            '__return_false',
+            'coc_gtm_section',
+            __( 'Google Tag Manager', 'courier-order-check' ),
+            [ __CLASS__, 'render_gtm_section_desc' ],
             'courier-order-check'
         );
 
         add_settings_field(
-            'coc_api_key',
-            __( 'API Key', 'courier-order-check' ),
-            [ __CLASS__, 'render_api_key_field' ],
+            'coc_gtm_id',
+            __( 'Container ID', 'courier-order-check' ),
+            [ __CLASS__, 'render_gtm_id_field' ],
             'courier-order-check',
-            'coc_main_section'
+            'coc_gtm_section'
         );
 
-        add_settings_field(
-            'coc_domain',
-            __( 'Your Domain', 'courier-order-check' ),
-            [ __CLASS__, 'render_domain_field' ],
-            'courier-order-check',
-            'coc_main_section'
+        // ── Meta Pixel + Conversions API ──────────────────────────────
+        register_setting( 'coc_settings_group', 'coc_pixel_id',        [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_settings_group', 'coc_pixel_token',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_settings_group', 'coc_pixel_test_code', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+
+        add_settings_section(
+            'coc_pixel_section',
+            __( 'Meta Pixel & Conversions API', 'courier-order-check' ),
+            [ __CLASS__, 'render_pixel_section_desc' ],
+            'courier-order-check'
         );
+
+        add_settings_field( 'coc_pixel_id',        __( 'Pixel ID',              'courier-order-check' ), [ __CLASS__, 'render_pixel_id_field'        ], 'courier-order-check', 'coc_pixel_section' );
+        add_settings_field( 'coc_pixel_token',     __( 'CAPI Access Token',     'courier-order-check' ), [ __CLASS__, 'render_pixel_token_field'     ], 'courier-order-check', 'coc_pixel_section' );
+        add_settings_field( 'coc_pixel_test_code', __( 'Test Event Code',       'courier-order-check' ), [ __CLASS__, 'render_pixel_test_code_field' ], 'courier-order-check', 'coc_pixel_section' );
+
+        // ── TikTok Pixel + Events API ──────────────────────────────
+        register_setting( 'coc_settings_group', 'coc_ttk_pixel_id',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_settings_group', 'coc_ttk_access_token', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_settings_group', 'coc_ttk_test_code',    [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+
+        add_settings_section(
+            'coc_ttk_section',
+            __( 'TikTok Pixel & Events API', 'courier-order-check' ),
+            [ __CLASS__, 'render_ttk_section_desc' ],
+            'courier-order-check'
+        );
+
+        add_settings_field( 'coc_ttk_pixel_id',     __( 'Pixel ID',          'courier-order-check' ), [ __CLASS__, 'render_ttk_pixel_id_field'     ], 'courier-order-check', 'coc_ttk_section' );
+        add_settings_field( 'coc_ttk_access_token', __( 'Events API Token',  'courier-order-check' ), [ __CLASS__, 'render_ttk_access_token_field' ], 'courier-order-check', 'coc_ttk_section' );
+        add_settings_field( 'coc_ttk_test_code',    __( 'Test Event Code',   'courier-order-check' ), [ __CLASS__, 'render_ttk_test_code_field'    ], 'courier-order-check', 'coc_ttk_section' );
+
+        // ── Facebook Product Catalog ────────────────────────────────
+        register_setting( 'coc_settings_group', 'coc_fb_catalog_enabled',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_settings_group', 'coc_fb_catalog_condition',   [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'new' ] );
+        register_setting( 'coc_settings_group', 'coc_fb_catalog_include_oos', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+
+        add_settings_section(
+            'coc_fb_catalog_section',
+            __( 'Facebook Product Catalog', 'courier-order-check' ),
+            [ __CLASS__, 'render_fb_catalog_section_desc' ],
+            'courier-order-check'
+        );
+
+        add_settings_field( 'coc_fb_catalog_enabled',     __( 'Enable Feed',           'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_enabled_field'     ], 'courier-order-check', 'coc_fb_catalog_section' );
+        add_settings_field( 'coc_fb_catalog_feed_url',    __( 'Feed URL',              'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_feed_url_field'    ], 'courier-order-check', 'coc_fb_catalog_section' );
+        add_settings_field( 'coc_fb_catalog_condition',   __( 'Product Condition',     'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_condition_field'   ], 'courier-order-check', 'coc_fb_catalog_section' );
+        add_settings_field( 'coc_fb_catalog_include_oos', __( 'Include Out-of-Stock',  'courier-order-check' ), [ __CLASS__, 'render_fb_catalog_include_oos_field' ], 'courier-order-check', 'coc_fb_catalog_section' );
+
+        // ── Pathao Courier ────────────────────────────────────────
+        register_setting( 'coc_settings_group', 'coc_pathao_env',            [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'sandbox' ] );
+        register_setting( 'coc_settings_group', 'coc_pathao_client_id',      [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_settings_group', 'coc_pathao_client_secret',  [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_settings_group', 'coc_pathao_username',       [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_settings_group', 'coc_pathao_password',       [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_settings_group', 'coc_pathao_store_id',       [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+
+        add_settings_section(
+            'coc_pathao_section',
+            __( 'Pathao Courier', 'courier-order-check' ),
+            [ __CLASS__, 'render_pathao_section_desc' ],
+            'courier-order-check'
+        );
+
+        add_settings_field( 'coc_pathao_env',           __( 'Environment',     'courier-order-check' ), [ __CLASS__, 'render_pathao_env_field'           ], 'courier-order-check', 'coc_pathao_section' );
+        add_settings_field( 'coc_pathao_client_id',     __( 'Client ID',       'courier-order-check' ), [ __CLASS__, 'render_pathao_client_id_field'     ], 'courier-order-check', 'coc_pathao_section' );
+        add_settings_field( 'coc_pathao_client_secret', __( 'Client Secret',   'courier-order-check' ), [ __CLASS__, 'render_pathao_client_secret_field' ], 'courier-order-check', 'coc_pathao_section' );
+        add_settings_field( 'coc_pathao_username',      __( 'Email / Username','courier-order-check' ), [ __CLASS__, 'render_pathao_username_field'      ], 'courier-order-check', 'coc_pathao_section' );
+        add_settings_field( 'coc_pathao_password',      __( 'Password',        'courier-order-check' ), [ __CLASS__, 'render_pathao_password_field'      ], 'courier-order-check', 'coc_pathao_section' );
+        add_settings_field( 'coc_pathao_connect',       __( 'Connect',         'courier-order-check' ), [ __CLASS__, 'render_pathao_connect_field'       ], 'courier-order-check', 'coc_pathao_section' );
+        add_settings_field( 'coc_pathao_store_id',      __( 'Default Store',   'courier-order-check' ), [ __CLASS__, 'render_pathao_store_id_field'      ], 'courier-order-check', 'coc_pathao_section' );
+
+        // ── Steadfast Courier ────────────────────────────────────────
+        register_setting( 'coc_settings_group', 'coc_sf_api_key',        [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_settings_group', 'coc_sf_secret_key',     [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_settings_group', 'coc_sf_webhook_secret', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+
+        add_settings_section(
+            'coc_sf_section',
+            __( 'Steadfast Courier', 'courier-order-check' ),
+            [ __CLASS__, 'render_sf_section_desc' ],
+            'courier-order-check'
+        );
+
+        add_settings_field( 'coc_sf_api_key',        __( 'API Key',        'courier-order-check' ), [ __CLASS__, 'render_sf_api_key_field'        ], 'courier-order-check', 'coc_sf_section' );
+        add_settings_field( 'coc_sf_secret_key',     __( 'Secret Key',     'courier-order-check' ), [ __CLASS__, 'render_sf_secret_key_field'     ], 'courier-order-check', 'coc_sf_section' );
+        add_settings_field( 'coc_sf_webhook_secret', __( 'Webhook Secret', 'courier-order-check' ), [ __CLASS__, 'render_sf_webhook_secret_field' ], 'courier-order-check', 'coc_sf_section' );
+        add_settings_field( 'coc_sf_check',          __( 'Test / Balance', 'courier-order-check' ), [ __CLASS__, 'render_sf_check_field'         ], 'courier-order-check', 'coc_sf_section' );
     }
 
-    /**
-     * Strip protocol and trailing slashes, keep only the bare host.
-     */
+    public static function sanitize_gtm_id( $value ) {
+        $value = strtoupper( sanitize_text_field( $value ) );
+        if ( ! empty( $value ) && ! preg_match( '/^GTM-[A-Z0-9]+$/', $value ) ) {
+            add_settings_error(
+                'coc_gtm_id',
+                'invalid_gtm_id',
+                __( 'Invalid GTM Container ID. Expected format: GTM-XXXXXXX', 'courier-order-check' )
+            );
+            return get_option( 'coc_gtm_id', '' );
+        }
+        return $value;
+    }
+
+    public static function render_tracking_behaviour_desc() {
+        echo '<p>' . esc_html__( 'Controls when the Purchase conversion event is sent to GTM, Meta, and TikTok.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_purchase_on_complete_field() {
+        $checked = get_option( 'coc_purchase_on_complete', '' ) ? 'checked' : '';
+        echo '<label>';
+        echo '<input type="checkbox" id="coc_purchase_on_complete" name="coc_purchase_on_complete" value="1" ' . $checked . ' />';
+        echo ' ' . esc_html__( 'Count Purchase only when order status changes to “Completed” (set by admin)', 'courier-order-check' );
+        echo '</label>';
+        echo '<p class="description">' . esc_html__( 'When ✔ active: the server-side Purchase event (Meta CAPI, TikTok Events API) fires when the admin marks the order as Completed. GTM / browser pixel fires if the customer revisits the order-received page after that point. When ✘ inactive (default): all platforms fire at the moment the order is placed.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_gtm_section_desc() {
+        echo '<p>' . esc_html__( 'Enter your GTM Container ID to enable GA4 ecommerce event tracking across your WooCommerce store.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_gtm_id_field() {
+        $val = esc_attr( get_option( 'coc_gtm_id', '' ) );
+        echo '<input type="text" id="coc_gtm_id" name="coc_gtm_id" class="regular-text"
+                     value="' . $val . '" placeholder="GTM-XXXXXXX" />';
+        echo '<p class="description">' .
+             esc_html__( 'Find this in your GTM workspace. Example: GTM-ABC1234', 'courier-order-check' ) .
+             '</p>';
+    }
+
+    public static function render_pixel_section_desc() {
+        echo '<p>' . esc_html__( 'Browser pixel + server-side Conversions API (sent directly from your server). Both fire with matching event IDs for accurate deduplication.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_pixel_id_field() {
+        $val = esc_attr( get_option( 'coc_pixel_id', '' ) );
+        echo '<input type="text" id="coc_pixel_id" name="coc_pixel_id" class="regular-text" value="' . $val . '" placeholder="123456789012345" />';
+        echo '<p class="description">' . esc_html__( 'Your 15-16 digit Meta Pixel ID from Events Manager.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_pixel_token_field() {
+        $val = esc_attr( get_option( 'coc_pixel_token', '' ) );
+        echo '<input type="password" id="coc_pixel_token" name="coc_pixel_token" class="regular-text" value="' . $val . '" autocomplete="new-password" />';
+        echo '<p class="description">' . esc_html__( 'Conversions API access token from Meta Events Manager → Settings → Conversions API.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_pixel_test_code_field() {
+        $val = esc_attr( get_option( 'coc_pixel_test_code', '' ) );
+        echo '<input type="text" id="coc_pixel_test_code" name="coc_pixel_test_code" class="regular-text" value="' . $val . '" placeholder="TEST12345" />';
+        echo '<p class="description">' . esc_html__( 'Optional. From Meta Events Manager → Test Events tab. Remove after testing.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_ttk_section_desc() {
+        echo '<p>' . esc_html__( 'Browser pixel + server-side Events API (sent directly from your server to TikTok). Both fire with matching event IDs for accurate deduplication.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_ttk_pixel_id_field() {
+        $val = esc_attr( get_option( 'coc_ttk_pixel_id', '' ) );
+        echo '<input type="text" id="coc_ttk_pixel_id" name="coc_ttk_pixel_id" class="regular-text" value="' . $val . '" placeholder="ABCDE12345" />';
+        echo '<p class="description">' . esc_html__( 'Your TikTok Pixel ID from TikTok Ads Manager → Assets → Events → Web Events.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_ttk_access_token_field() {
+        $val = esc_attr( get_option( 'coc_ttk_access_token', '' ) );
+        echo '<input type="password" id="coc_ttk_access_token" name="coc_ttk_access_token" class="regular-text" value="' . $val . '" autocomplete="new-password" />';
+        echo '<p class="description">' . esc_html__( 'Events API access token from TikTok Ads Manager → Assets → Events → Web Events → Set Up Web Events → Events API.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_ttk_test_code_field() {
+        $val = esc_attr( get_option( 'coc_ttk_test_code', '' ) );
+        echo '<input type="text" id="coc_ttk_test_code" name="coc_ttk_test_code" class="regular-text" value="' . $val . '" placeholder="TEST_CODE" />';
+        echo '<p class="description">' . esc_html__( 'Optional. From TikTok Events Manager → Test Events. Remove after testing.', 'courier-order-check' ) . '</p>';
+    }
+
+    /* ------------------------------------------------------------------
+     * Facebook Catalog field renderers
+     * ------------------------------------------------------------------ */
+
+    public static function render_fb_catalog_section_desc() {
+        echo '<p>' . esc_html__( 'Generates a Google Shopping-compatible XML product feed that Facebook Catalog Ads can crawl. After enabling, copy the Feed URL into Meta Commerce Manager → Data Sources → Add Product Feed.', 'courier-order-check' ) . '</p>';
+        echo '<p>' . sprintf(
+            /* translators: %s: admin URL */
+            esc_html__( 'After enabling or disabling the feed, %s.', 'courier-order-check' ),
+            '<a href="' . esc_url( admin_url( 'options-permalink.php' ) ) . '">' . esc_html__( 'flush permalink/rewrite rules', 'courier-order-check' ) . '</a>'
+        ) . '</p>';
+    }
+
+    public static function render_fb_catalog_enabled_field() {
+        $checked = get_option( 'coc_fb_catalog_enabled', '' ) ? 'checked' : '';
+        echo '<label>';
+        echo '<input type="checkbox" id="coc_fb_catalog_enabled" name="coc_fb_catalog_enabled" value="1" ' . $checked . ' />';
+        echo ' ' . esc_html__( 'Enable the product feed endpoint', 'courier-order-check' );
+        echo '</label>';
+    }
+
+    public static function render_fb_catalog_feed_url_field() {
+        $url = class_exists( 'COC_FB_Catalog' ) ? COC_FB_Catalog::feed_url() : home_url( '/fb-catalog.xml' );
+        echo '<code style="user-select:all;">' . esc_url( $url ) . '</code>';
+        echo '<button type="button" class="button button-secondary" style="margin-left:8px;" onclick="navigator.clipboard.writeText(\'' . esc_js( $url ) . '\')">' . esc_html__( 'Copy', 'courier-order-check' ) . '</button>';
+        echo '<p class="description">' . esc_html__( 'Paste this URL into Meta Commerce Manager → Data Sources → Add Product Feed → Scheduled Feed.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_fb_catalog_condition_field() {
+        $val = get_option( 'coc_fb_catalog_condition', 'new' );
+        $options = [ 'new' => __( 'New', 'courier-order-check' ), 'refurbished' => __( 'Refurbished', 'courier-order-check' ), 'used' => __( 'Used', 'courier-order-check' ) ];
+        echo '<select id="coc_fb_catalog_condition" name="coc_fb_catalog_condition">';
+        foreach ( $options as $key => $label ) {
+            echo '<option value="' . esc_attr( $key ) . '"' . selected( $val, $key, false ) . '>' . esc_html( $label ) . '</option>';
+        }
+        echo '</select>';
+        echo '<p class="description">' . esc_html__( 'Default product condition to report to Facebook (applies to all products unless overridden).', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_fb_catalog_include_oos_field() {
+        $checked = get_option( 'coc_fb_catalog_include_oos', '' ) ? 'checked' : '';
+        echo '<label>';
+        echo '<input type="checkbox" id="coc_fb_catalog_include_oos" name="coc_fb_catalog_include_oos" value="1" ' . $checked . ' />';
+        echo ' ' . esc_html__( 'Include out-of-stock products in the feed (shown as \"out of stock\")', 'courier-order-check' );
+        echo '</label>';
+    }
+    /* ------------------------------------------------------------------
+     * Pathao Courier field renderers
+     * ------------------------------------------------------------------ */
+
+    public static function render_sf_section_desc() {
+        echo '<p>' . esc_html__( 'Steadfast Courier integration. Enter your API Key and Secret Key from the Steadfast portal (portal.packzy.com). Save settings, then click Test / Balance to verify.', 'courier-order-check' ) . '</p>';
+        $webhook_url = rest_url( 'coc/v1/sf-webhook' );
+        echo '<p>' . esc_html__( 'Webhook URL:', 'courier-order-check' ) . ' <code>' . esc_url( $webhook_url ) . '</code></p>';
+    }
+
+    public static function render_sf_api_key_field() {
+        $val = esc_attr( get_option( 'coc_sf_api_key', '' ) );
+        echo '<input type="text" id="coc_sf_api_key" name="coc_sf_api_key" class="regular-text" value="' . $val . '" autocomplete="off" />';
+    }
+
+    public static function render_sf_secret_key_field() {
+        $val = esc_attr( get_option( 'coc_sf_secret_key', '' ) );
+        echo '<input type="password" id="coc_sf_secret_key" name="coc_sf_secret_key" class="regular-text" value="' . $val . '" autocomplete="new-password" />';
+    }
+
+    public static function render_sf_webhook_secret_field() {
+        $val = esc_attr( get_option( 'coc_sf_webhook_secret', '' ) );
+        echo '<input type="text" id="coc_sf_webhook_secret" name="coc_sf_webhook_secret" class="regular-text" value="' . $val . '" autocomplete="off" />';
+        echo '<p class="description">' . esc_html__( 'The Bearer token you configure in the Steadfast portal webhook settings. Used to authenticate incoming webhook requests.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_sf_check_field() {
+        $nonce = wp_create_nonce( 'coc_steadfast' );
+        echo '<button type="button" class="button button-secondary" id="coc-sf-check-btn" data-nonce="' . esc_attr( $nonce ) . '">';
+        echo esc_html__( 'Test &amp; Check Balance', 'courier-order-check' );
+        echo '</button>';
+        echo '<span id="coc-sf-check-result" style="margin-left:12px;font-weight:600;"></span>';
+        echo '<p class="description">' . esc_html__( 'Save settings first, then click to verify the connection and see your current balance.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_pathao_section_desc() {
+        $connected = class_exists( 'COC_Pathao' ) && COC_Pathao::is_connected();
+        if ( $connected ) {
+            echo '<p style="color:#15803d;font-weight:600;">&#10003; ' . esc_html__( 'Connected to Pathao Courier API.', 'courier-order-check' ) . '</p>';
+        } else {
+            echo '<p>' . esc_html__( 'Enter your Pathao Merchant API credentials and click Connect. Once connected, a Pathao panel will appear on every order edit page.', 'courier-order-check' ) . '</p>';
+        }
+    }
+
+    public static function render_pathao_env_field() {
+        $val = get_option( 'coc_pathao_env', 'sandbox' );
+        echo '<select id="coc_pathao_env" name="coc_pathao_env">';
+        echo '<option value="sandbox"'    . selected( $val, 'sandbox',    false ) . '>' . esc_html__( 'Sandbox (Test)', 'courier-order-check' ) . '</option>';
+        echo '<option value="production"' . selected( $val, 'production', false ) . '>' . esc_html__( 'Production (Live)', 'courier-order-check' ) . '</option>';
+        echo '</select>';
+        echo '<p class="description">' . esc_html__( 'Use Sandbox for testing. Switch to Production when ready to go live.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_pathao_client_id_field() {
+        $val = esc_attr( get_option( 'coc_pathao_client_id', '' ) );
+        echo '<input type="text" id="coc_pathao_client_id" name="coc_pathao_client_id" class="regular-text" value="' . $val . '" autocomplete="off" />';
+    }
+
+    public static function render_pathao_client_secret_field() {
+        $val = esc_attr( get_option( 'coc_pathao_client_secret', '' ) );
+        echo '<input type="password" id="coc_pathao_client_secret" name="coc_pathao_client_secret" class="regular-text" value="' . $val . '" autocomplete="new-password" />';
+    }
+
+    public static function render_pathao_username_field() {
+        $val = esc_attr( get_option( 'coc_pathao_username', '' ) );
+        echo '<input type="email" id="coc_pathao_username" name="coc_pathao_username" class="regular-text" value="' . $val . '" autocomplete="off" />';
+    }
+
+    public static function render_pathao_password_field() {
+        $val = esc_attr( get_option( 'coc_pathao_password', '' ) );
+        echo '<input type="password" id="coc_pathao_password" name="coc_pathao_password" class="regular-text" value="' . $val . '" autocomplete="new-password" />';
+        echo '<p class="description">' . esc_html__( 'Password is stored encrypted in the WP options table.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_pathao_connect_field() {
+        $nonce = wp_create_nonce( 'coc_pathao' );
+        echo '<button type="button" class="button button-secondary" id="coc-pathao-connect-btn" data-nonce="' . esc_attr( $nonce ) . '">';
+        echo esc_html__( 'Save &amp; Connect', 'courier-order-check' );
+        echo '</button>';
+        echo '<span id="coc-pathao-connect-result" style="margin-left:12px;font-weight:600;"></span>';
+        echo '<p class="description">' . esc_html__( 'Save settings first, then click Connect to issue an access token.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_pathao_store_id_field() {
+        $val     = esc_attr( get_option( 'coc_pathao_store_id', '' ) );
+        $nonce   = wp_create_nonce( 'coc_pathao' );
+        echo '<select id="coc_pathao_store_id" name="coc_pathao_store_id">';
+        if ( $val ) {
+            echo '<option value="' . $val . '" selected>' . esc_html__( '(stored)', 'courier-order-check' ) . ' ID: ' . $val . '</option>';
+        } else {
+            echo '<option value="">' . esc_html__( '— Connect first, then refresh —', 'courier-order-check' ) . '</option>';
+        }
+        echo '</select>';
+        echo ' <button type="button" class="button" id="coc-pathao-load-stores-btn" data-nonce="' . esc_attr( $nonce ) . '">' . esc_html__( 'Load Stores', 'courier-order-check' ) . '</button>';
+        echo '<p class="description">' . esc_html__( 'Selected store becomes the default pickup location on order panels.', 'courier-order-check' ) . '</p>';
+    }
+    /* ------------------------------------------------------------------
+     * Connection gate helper
+     * ------------------------------------------------------------------ */
+
+    public static function is_api_connected() {
+        return '1' === get_option( 'coc_api_connected', '' );
+    }
+
+    /* ------------------------------------------------------------------
+     * Sanitize callbacks
+     * ------------------------------------------------------------------ */
+
+    public static function sanitize_api_key( $value ) {
+        // Changing key resets connection status.
+        $value = sanitize_text_field( $value );
+        if ( $value !== get_option( 'coc_api_key', '' ) ) {
+            update_option( 'coc_api_connected', '' );
+        }
+        return $value;
+    }
+
     public static function sanitize_domain( $value ) {
         $value = sanitize_text_field( $value );
         $value = preg_replace( '#^https?://#i', '', $value );
         $value = rtrim( $value, '/' );
+        if ( $value !== get_option( 'coc_domain', '' ) ) {
+            update_option( 'coc_api_connected', '' );
+        }
         return $value;
     }
 
     /* ------------------------------------------------------------------
-     * Field renderers
+     * Field renderers — API config
      * ------------------------------------------------------------------ */
 
     public static function render_api_key_field() {
         $val = esc_attr( get_option( 'coc_api_key', '' ) );
-        echo '<input type="password" id="coc_api_key" name="coc_api_key"
-                     class="regular-text" value="' . $val . '"
-                     autocomplete="new-password" />';
-        echo '<p class="description">' .
-             esc_html__( 'Your Bearer token from the Growever dashboard.', 'courier-order-check' ) .
-             '</p>';
+        echo '<input type="password" id="coc_api_key" name="coc_api_key" class="regular-text" value="' . $val . '" autocomplete="new-password" />';
+        echo '<p class="description">' . esc_html__( 'Your Bearer token from the GrowEver dashboard.', 'courier-order-check' ) . '</p>';
     }
 
     public static function render_domain_field() {
         $val = esc_attr( get_option( 'coc_domain', '' ) );
-        echo '<input type="text" id="coc_domain" name="coc_domain"
-                     class="regular-text" value="' . $val . '"
-                     placeholder="example.com" />';
-        echo '<p class="description">' .
-             esc_html__( 'The domain registered with Growever (no protocol, no trailing slash).', 'courier-order-check' ) .
-             '</p>';
+        echo '<input type="text" id="coc_domain" name="coc_domain" class="regular-text" value="' . $val . '" placeholder="example.com" />';
+        echo '<p class="description">' . esc_html__( 'The domain registered with GrowEver (no protocol, no trailing slash).', 'courier-order-check' ) . '</p>';
     }
 
     /* ------------------------------------------------------------------
@@ -119,35 +488,77 @@ class COC_Admin {
         if ( ! current_user_can( 'manage_woocommerce' ) ) {
             return;
         }
+        $connected = self::is_api_connected();
         ?>
         <div class="wrap coc-settings-wrap">
-            <h1><?php esc_html_e( 'Courier Order Check', 'courier-order-check' ); ?></h1>
-            <p class="coc-intro">
-                <?php esc_html_e( 'Configure your Growever API credentials. The plugin will display courier order success ratios on WooCommerce order detail pages.', 'courier-order-check' ); ?>
-            </p>
+            <h1><?php esc_html_e( 'GrowEver', 'courier-order-check' ); ?></h1>
 
+            <!-- ── GrowEver Get Started Card ──────────────────────── -->
+            <div class="coc-growever-card">
+                <div class="coc-growever-card__logo">
+                    <span class="dashicons dashicons-chart-bar" style="font-size:36px;width:36px;height:36px;color:#2563eb;"></span>
+                </div>
+                <div class="coc-growever-card__body">
+                    <h2 style="margin:0 0 6px;font-size:18px;color:#1e3a5f;"><?php esc_html_e( 'Get Started with GrowEver', 'courier-order-check' ); ?></h2>
+                    <p style="margin:0 0 14px;color:#4b5563;">
+                        <?php esc_html_e( 'Create a free account on the GrowEver platform to get your API key, access courier success ratio data, and unlock all features of this plugin.', 'courier-order-check' ); ?>
+                    </p>
+                    <div class="coc-growever-card__actions">
+                        <a href="https://app.growever.bd/" target="_blank" rel="noopener noreferrer" class="button button-primary coc-growever-btn">
+                            &#127758; <?php esc_html_e( 'Create Account / Get API Key', 'courier-order-check' ); ?>
+                        </a>
+                        <a href="https://wa.me/8801518401677" target="_blank" rel="noopener noreferrer" class="button coc-growever-btn coc-growever-btn--wa">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align:middle;margin-right:4px;"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                            <?php esc_html_e( 'WhatsApp: 01518401677', 'courier-order-check' ); ?>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── API Configuration form (always visible) ─────────── -->
             <form method="post" action="options.php">
                 <?php
                 settings_fields( 'coc_settings_group' );
+                // Always show only the API section here.
                 do_settings_sections( 'courier-order-check' );
                 submit_button( __( 'Save Settings', 'courier-order-check' ) );
                 ?>
             </form>
 
-            <hr />
+            <?php if ( ! $connected ) : ?>
+            <!-- ── Test Connection (shown when not yet connected) ── -->
+            <div class="coc-connect-box">
+                <h2 style="margin:0 0 6px;"><?php esc_html_e( 'Verify Connection', 'courier-order-check' ); ?></h2>
+                <p style="margin:0 0 12px;color:#4b5563;"><?php esc_html_e( 'Save your API Key and Domain above, then click Test Connection to unlock all plugin features.', 'courier-order-check' ); ?></p>
+                <button id="coc-test-btn" class="button button-secondary"><?php esc_html_e( 'Test Connection', 'courier-order-check' ); ?></button>
+                <span id="coc-test-spinner" class="spinner" style="float:none;margin-top:0;"></span>
+                <div id="coc-test-result" class="coc-test-result" style="display:none;"></div>
+            </div>
+            <?php else : ?>
+            <div class="coc-connected-notice">
+                <span class="dashicons dashicons-yes-alt" style="color:#16a34a;font-size:20px;vertical-align:middle;margin-right:6px;"></span>
+                <strong style="color:#15803d;"><?php esc_html_e( 'Connected to GrowEver API.', 'courier-order-check' ); ?></strong>
+                <a href="#" id="coc-disconnect-btn" style="margin-left:14px;color:#dc2626;font-size:12px;"><?php esc_html_e( 'Disconnect', 'courier-order-check' ); ?></a>
+            </div>
+            <?php endif; ?>
 
-            <h2><?php esc_html_e( 'Test API Connection', 'courier-order-check' ); ?></h2>
-            <p><?php esc_html_e( 'Verify that your API key and domain are correctly configured before using the plugin.', 'courier-order-check' ); ?></p>
-            <button id="coc-test-btn" class="button button-secondary">
-                <?php esc_html_e( 'Test Connection', 'courier-order-check' ); ?>
-            </button>
-            <span id="coc-test-spinner" class="spinner" style="float:none; margin-top:0;"></span>
-            <div id="coc-test-result" class="coc-test-result" style="display:none;"></div>
+        </div>
+        <?php
+    }
 
-            <hr />
+    /* ------------------------------------------------------------------
+     * IP Blocklist page HTML
+     * ------------------------------------------------------------------ */
 
-            <h2><?php esc_html_e( 'IP Blocklist', 'courier-order-check' ); ?></h2>
-            <p><?php esc_html_e( 'Block specific IP addresses to prevent fake or fraudulent orders. Blocked IPs cannot complete checkout.', 'courier-order-check' ); ?></p>
+    public static function render_ip_blocklist_page() {
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            return;
+        }
+        $blocked = COC_IP_Blocker::get_blocked_ips();
+        ?>
+        <div class="wrap coc-settings-wrap">
+            <h1><?php esc_html_e( 'IP Blocklist', 'courier-order-check' ); ?></h1>
+            <p class="coc-intro"><?php esc_html_e( 'Block specific IP addresses to prevent fake or fraudulent orders. Blocked IPs will see an error message and cannot complete checkout.', 'courier-order-check' ); ?></p>
 
             <div class="coc-ip-add-row">
                 <input type="text" id="coc-ip-input" class="regular-text" placeholder="e.g. 103.73.47.13" />
@@ -165,23 +576,14 @@ class COC_Admin {
                     </tr>
                 </thead>
                 <tbody id="coc-ip-list">
-                    <?php
-                    $blocked = COC_IP_Blocker::get_blocked_ips();
-                    if ( empty( $blocked ) ) :
-                    ?>
+                    <?php if ( empty( $blocked ) ) : ?>
                         <tr id="coc-ip-empty"><td colspan="2" class="coc-ip-empty"><?php esc_html_e( 'No IPs blocked yet.', 'courier-order-check' ); ?></td></tr>
-                    <?php
-                    else :
-                        foreach ( $blocked as $ip ) :
-                    ?>
+                    <?php else : foreach ( $blocked as $ip ) : ?>
                         <tr data-ip="<?php echo esc_attr( $ip ); ?>">
                             <td><code class="coc-ip-code"><?php echo esc_html( $ip ); ?></code></td>
                             <td><button type="button" class="button button-small coc-unblock-btn" data-ip="<?php echo esc_attr( $ip ); ?>"><?php esc_html_e( 'Unblock', 'courier-order-check' ); ?></button></td>
                         </tr>
-                    <?php
-                        endforeach;
-                    endif;
-                    ?>
+                    <?php endforeach; endif; ?>
                 </tbody>
             </table>
         </div>
@@ -197,7 +599,24 @@ class COC_Admin {
         $js_ver  = file_exists( COC_PLUGIN_DIR . 'assets/js/admin.js' )  ? filemtime( COC_PLUGIN_DIR . 'assets/js/admin.js' )  : COC_VERSION;
 
         // Settings page.
-        if ( 'woocommerce_page_courier-order-check' === $hook ) {
+        if ( 'toplevel_page_courier-order-check' === $hook ) {
+            wp_enqueue_style( 'coc-admin', COC_PLUGIN_URL . 'assets/css/admin.css', [], $css_ver );
+            wp_enqueue_script( 'coc-admin', COC_PLUGIN_URL . 'assets/js/admin.js', [ 'jquery' ], $js_ver, true );
+            wp_localize_script( 'coc-admin', 'COC', [
+                'ajax_url'     => admin_url( 'admin-ajax.php' ),
+                'nonce'        => wp_create_nonce( 'coc_test_connection' ),
+                'ip_nonce'     => wp_create_nonce( 'coc_ip_block' ),
+                'pathao_nonce' => wp_create_nonce( 'coc_pathao' ),
+                'sf_nonce'     => wp_create_nonce( 'coc_steadfast' ),
+                'l10n'         => [
+                    'testing'  => __( 'Testing…', 'courier-order-check' ),
+                    'test_btn' => __( 'Test Connection', 'courier-order-check' ),
+                ],
+            ] );
+        }
+
+        // IP Blocklist page.
+        if ( 'growever_page_coc-ip-blocklist' === $hook ) {
             wp_enqueue_style( 'coc-admin', COC_PLUGIN_URL . 'assets/css/admin.css', [], $css_ver );
             wp_enqueue_script( 'coc-admin', COC_PLUGIN_URL . 'assets/js/admin.js', [ 'jquery' ], $js_ver, true );
             wp_localize_script( 'coc-admin', 'COC', [
@@ -223,17 +642,89 @@ class COC_Admin {
 
     public static function ajax_test_connection() {
         check_ajax_referer( 'coc_test_connection', 'nonce' );
-
         if ( ! current_user_can( 'manage_woocommerce' ) ) {
             wp_send_json_error( [ 'message' => __( 'Permission denied.', 'courier-order-check' ) ] );
         }
-
         $result = COC_API::check_connection();
-
         if ( is_wp_error( $result ) ) {
+            update_option( 'coc_api_connected', '' );
             wp_send_json_error( [ 'message' => $result->get_error_message() ] );
         }
-
+        update_option( 'coc_api_connected', '1' );
         wp_send_json_success( $result );
+    }
+
+    public static function ajax_disconnect() {
+        check_ajax_referer( 'coc_test_connection', 'nonce' );
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error();
+        }
+        update_option( 'coc_api_connected', '' );
+        wp_send_json_success();
+    }
+
+    /* ------------------------------------------------------------------
+     * Pathao — admin settings page AJAX (uses coc_pathao nonce)
+     * ------------------------------------------------------------------ */
+
+    public static function ajax_pathao_admin_connect() {
+        if ( ! check_ajax_referer( 'coc_pathao', 'nonce', false ) || ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( [ 'message' => 'Permission denied.' ], 403 );
+        }
+        if ( ! class_exists( 'COC_Pathao' ) ) {
+            wp_send_json_error( [ 'message' => 'Pathao class not loaded.' ] );
+        }
+        // Accept form values directly so the user doesn't have to save before connecting.
+        $client_id     = sanitize_text_field( $_POST['client_id']     ?? '' );
+        $client_secret = sanitize_text_field( $_POST['client_secret'] ?? '' );
+        $username      = sanitize_text_field( $_POST['username']       ?? '' );
+        $password      = sanitize_text_field( $_POST['password']       ?? '' );
+        $env           = sanitize_text_field( $_POST['env']            ?? '' );
+        $result = COC_Pathao::issue_token_from_credentials( $client_id, $client_secret, $username, $password, $env );
+        if ( $result['ok'] ) {
+            wp_send_json_success( [ 'message' => 'Connected to Pathao successfully!' ] );
+        } else {
+            wp_send_json_error( [ 'message' => $result['message'] ?: 'Connection failed.' ] );
+        }
+    }
+
+    public static function ajax_pathao_admin_get_stores() {
+        if ( ! check_ajax_referer( 'coc_pathao', 'nonce', false ) || ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( [ 'message' => 'Permission denied.' ], 403 );
+        }
+        if ( ! class_exists( 'COC_Pathao' ) ) {
+            wp_send_json_error( [ 'message' => 'Pathao class not loaded.' ] );
+        }
+        $r = COC_Pathao::get_stores();
+        if ( $r['ok'] ) {
+            wp_send_json_success( $r['data']['data'] ?? $r['data'] );
+        } else {
+            wp_send_json_error( [ 'message' => $r['message'] ] );
+        }
+    }
+
+    /* ------------------------------------------------------------------
+     * Steadfast — admin settings page AJAX
+     * ------------------------------------------------------------------ */
+
+    public static function ajax_sf_admin_check() {
+        if ( ! check_ajax_referer( 'coc_steadfast', 'nonce', false ) || ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( [ 'message' => 'Permission denied.' ], 403 );
+        }
+        if ( ! class_exists( 'COC_Steadfast' ) ) {
+            wp_send_json_error( [ 'message' => 'Steadfast class not loaded.' ] );
+        }
+        // Use form values directly so the user doesn't have to save before testing.
+        $api_key    = sanitize_text_field( $_POST['api_key']    ?? '' ) ?: get_option( 'coc_sf_api_key', '' );
+        $secret_key = sanitize_text_field( $_POST['secret_key'] ?? '' ) ?: get_option( 'coc_sf_secret_key', '' );
+        $r = COC_Steadfast::get_balance_with( $api_key, $secret_key );
+        if ( $r['ok'] ) {
+            // Persist credentials so the order panel becomes visible immediately.
+            update_option( 'coc_sf_api_key',    $api_key );
+            update_option( 'coc_sf_secret_key', $secret_key );
+            wp_send_json_success( [ 'balance' => $r['data']['current_balance'] ?? 0 ] );
+        } else {
+            wp_send_json_error( [ 'message' => $r['message'] ?: 'Connection failed.' ] );
+        }
     }
 }

@@ -74,8 +74,8 @@
 
                 if ( summary ) {
                     $badges.html(
-                        '<span class="coc-badge coc-badge-total">Total : '   + esc( summary.total_parcel ) + '</span>' +
-                        '<span class="coc-badge coc-badge-success">Success : ' + esc( summary.success_parcel ) + '</span>' +
+                        '<span class="coc-badge coc-badge-total">Total : '    + esc( summary.total_parcel     ) + '</span>' +
+                        '<span class="coc-badge coc-badge-success">Success : ' + esc( summary.success_parcel   ) + '</span>' +
                         '<span class="coc-badge coc-badge-cancel">Cancel : '   + esc( summary.cancelled_parcel ) + '</span>'
                     );
                     var sr       = parseFloat( summary.success_ratio ) || 0;
@@ -103,12 +103,12 @@
            ============================================================ */
 
         $( document ).on( 'click', '.coc-ip-toggle-btn', function () {
-            var $btn     = $( this );
-            var $bar     = $btn.closest( '.coc-ip-bar' );
-            var ip       = $btn.data( 'ip' );
-            var nonce    = $bar.data( 'nonce' );
-            var isBlock  = $btn.hasClass( 'coc-ip-toggle-btn--block' );
-            var action   = isBlock ? 'coc_block_ip' : 'coc_unblock_ip';
+            var $btn    = $( this );
+            var $bar    = $btn.closest( '.coc-ip-bar' );
+            var ip      = $btn.data( 'ip' );
+            var nonce   = $bar.data( 'nonce' );
+            var isBlock = $btn.hasClass( 'coc-ip-toggle-btn--block' );
+            var action  = isBlock ? 'coc_block_ip' : 'coc_unblock_ip';
 
             $btn.prop( 'disabled', true ).text( isBlock ? 'Blocking...' : 'Unblocking...' );
 
@@ -123,14 +123,12 @@
                     }
 
                     if ( isBlock ) {
-                        // Update UI to blocked state.
                         $bar.addClass( 'coc-ip-bar--blocked' );
                         $btn.replaceWith(
                             '<span class="coc-ip-status coc-ip-status--blocked">BLOCKED</span>' +
                             '<button type="button" class="coc-ip-toggle-btn coc-ip-toggle-btn--unblock" data-ip="' + ip + '">Unblock IP</button>'
                         );
                     } else {
-                        // Update UI to unblocked state.
                         $bar.removeClass( 'coc-ip-bar--blocked' );
                         $bar.find( '.coc-ip-status' ).remove();
                         $btn.replaceWith(
@@ -144,110 +142,5 @@
             } );
         } );
 
-    } );
-}( jQuery ) );
-
-            if ( ! phone ) { return; }
-
-            $error.hide().text( '' );
-            $results.hide();
-            $loading.show();
-            $btn.prop( 'disabled', true );
-
-            $.post(
-                COC_ORDER.ajax_url,
-                {
-                    action: 'coc_courier_check',
-                    nonce:  COC_ORDER.nonce,
-                    phone:  phone,
-                },
-                function ( response ) {
-                    $loading.hide();
-                    $btn.prop( 'disabled', false );
-
-                    if ( ! response.success ) {
-                        var msg = ( response.data && response.data.message )
-                            ? response.data.message
-                            : 'An error occurred.';
-                        $error.text( msg ).show();
-                        return;
-                    }
-
-                    renderResults( response.data );
-                }
-            ).fail( function () {
-                $loading.hide();
-                $btn.prop( 'disabled', false );
-                $error.text( 'Request failed. Please try again.' ).show();
-            } );
-        }
-
-        /* ---- render ---- */
-        function esc( str ) {
-            return $( '<span>' ).text( String( str ) ).html();
-        }
-
-        function renderResults( data ) {
-            if ( ! data || ! data.data ) {
-                $error.text( 'Unexpected response format.' ).show();
-                return;
-            }
-
-            var couriers = data.data;
-            var summary  = couriers.summary || null;
-            var rows     = '';
-
-            $.each( couriers, function ( key, c ) {
-                if ( key === 'summary' ) { return; }
-                rows +=
-                    '<tr>' +
-                    '<td>' + esc( c.name || key ) + '</td>' +
-                    '<td>' + esc( c.total_parcel     || 0 ) + '</td>' +
-                    '<td class="coc-td-success">' + esc( c.success_parcel   || 0 ) + '</td>' +
-                    '<td class="coc-td-cancel">'  + esc( c.cancelled_parcel || 0 ) + '</td>' +
-                    '</tr>';
-            } );
-
-            $tbody.html( rows );
-
-            if ( summary ) {
-                /* badges */
-                $badges.html(
-                    '<span class="coc-badge coc-badge-total">Total : '   + esc( summary.total_parcel     ) + '</span>' +
-                    '<span class="coc-badge coc-badge-success">Success : ' + esc( summary.success_parcel   ) + '</span>' +
-                    '<span class="coc-badge coc-badge-cancel">Cancel : '   + esc( summary.cancelled_parcel ) + '</span>'
-                );
-
-                /* ratio bar */
-                var sr  = parseFloat( summary.success_ratio ) || 0;
-                var cr  = parseFloat( ( 100 - sr ).toFixed( 2 ) );
-                var barClass = sr >= 80 ? 'coc-bar-green' : ( sr >= 60 ? 'coc-bar-orange' : 'coc-bar-red' );
-
-                $bar
-                    .text( sr.toFixed( 0 ) + '% Success / ' + cr + '% Cancel' )
-                    .removeClass( 'coc-bar-green coc-bar-orange coc-bar-red' )
-                    .addClass( barClass );
-            } else {
-                $badges.empty();
-                $bar.text( '' );
-            }
-
-            $results.show();
-        }
-
-        /* ---- events ---- */
-        $btn.on( 'click', function () {
-            doSearch( $input.val() );
-        } );
-
-        $input.on( 'keydown', function ( e ) {
-            if ( e.which === 13 ) { doSearch( $input.val() ); }
-        } );
-
-        /* ---- auto-search on load ---- */
-        var defaultPhone = $panel.data( 'phone' );
-        if ( defaultPhone ) {
-            doSearch( defaultPhone );
-        }
     } );
 }( jQuery ) );

@@ -1,5 +1,5 @@
 /* =========================================================
-   Courier Order Check — Admin Styles
+   GrowEver — Admin Styles
    ========================================================= */
 
 /* ── Settings page ───────────────────────────────────────── */
@@ -345,3 +345,476 @@ body .coc-ratio-full-bar {
 body .coc-bar-green  { background: linear-gradient(90deg, #16a34a, #22c55e); }
 body .coc-bar-orange { background: linear-gradient(90deg, #d97706, #f59e0b); }
 body .coc-bar-red    { background: linear-gradient(90deg, #dc2626, #ef4444); }
+
+/* =========================================================
+   Courier panels — side-by-side row
+   ========================================================= */
+
+.coc-courier-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    width: 100%;
+    margin-top: 20px;
+}
+
+.coc-courier-col { min-width: 0; }
+
+/* Unified panel card — overrides per-courier wrapper defaults */
+.coc-courier-panel {
+    margin: 0 !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px !important;
+    background: #fff !important;
+    overflow: hidden !important;
+    font-size: 13px !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06) !important;
+    box-sizing: border-box !important;
+    padding: 0 !important;
+}
+
+/* Unified coloured title bar */
+.coc-courier-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 16px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: .02em;
+}
+.coc-pathao-title-bar { background: #2563eb; }
+.coc-sf-title-bar     { background: #18a558; }
+
+/* "Order Sent" badge inside title bar */
+.coc-courier-badge {
+    margin-left: auto;
+    flex-shrink: 0;
+    padding: 2px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.25);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+    /* already single-column, rule kept for safety */
+    .coc-courier-row { grid-template-columns: 1fr; }
+}
+
+/* =========================================================
+   Pathao Courier — Order panel
+   ========================================================= */
+
+/* Body padding (previously came from .coc-wrapper) */
+.coc-pathao-wrapper .coc-pathao-form        { padding: 14px; }
+.coc-pathao-wrapper .coc-pathao-info-grid   { padding: 14px 14px 4px; }
+.coc-pathao-wrapper .coc-pathao-actions     { padding: 10px 14px; border-top: 1px solid #f3f4f6; }
+.coc-pathao-wrapper .coc-pathao-actions-row { padding: 10px 14px; border-top: 1px solid #f3f4f6; }
+.coc-pathao-wrapper .coc-warning            { margin: 12px 14px; }
+.coc-pathao-wrapper #coc-pathao-msg         { margin: 4px 14px 10px; }
+
+/* ── Info grid (after order created) ── */
+.coc-pathao-info-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+.coc-pathao-info-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+}
+.coc-pathao-label {
+    min-width: 120px;
+    color: #666;
+    font-weight: 600;
+}
+.coc-pathao-value {
+    color: #1d2327;
+}
+.coc-pathao-status {
+    font-weight: 700;
+    color: #0d6efd;
+}
+
+/* ── Create order form ── */
+.coc-pathao-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.coc-pathao-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.coc-pathao-row > label,
+.coc-pathao-row > div > label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.coc-pathao-row input[type="text"],
+.coc-pathao-row input[type="number"],
+.coc-pathao-row input[type="email"],
+.coc-pathao-row select {
+    width: 100%;
+    height: 34px;
+    padding: 0 10px;
+    font-size: 13px;
+    border: 1px solid #d0d5dd;
+    border-radius: 6px;
+    box-sizing: border-box;
+    background: #fff;
+    color: #1d2327;
+}
+
+.coc-pathao-row input:focus,
+.coc-pathao-row select:focus {
+    border-color: #2271b1;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(34,113,177,.15);
+}
+
+.coc-pathao-row--2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.coc-pathao-row--3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+}
+.coc-pathao-row--4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+.coc-pathao-row--2 label,
+.coc-pathao-row--3 label,
+.coc-pathao-row--4 label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 3px;
+}
+
+/* ── Actions row ── */
+.coc-pathao-actions-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 6px;
+    border-top: 1px solid #f0f0f0;
+    margin-top: 4px;
+}
+
+.coc-pathao-btns {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.coc-pathao-price-result {
+    font-size: 13px;
+    color: #374151;
+}
+.coc-pathao-price-result strong {
+    color: #16a34a;
+    font-size: 15px;
+    margin-left: 4px;
+}
+
+.coc-pathao-actions {
+    margin-top: 10px;
+}
+
+/* ── Feedback message ── */
+.coc-pathao-msg {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.coc-pathao-msg--ok  { background: #dcfce7; color: #15803d; }
+.coc-pathao-msg--err { background: #fee2e2; color: #b91c1c; }
+
+/* ── Responsive ── */
+@media ( max-width: 900px ) {
+    .coc-pathao-row--3,
+    .coc-pathao-row--4 {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+@media ( max-width: 600px ) {
+    .coc-pathao-row--2,
+    .coc-pathao-row--3,
+    .coc-pathao-row--4 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ════════════════════════════════════════════════════════════
+   Steadfast Courier Order Panel
+   ════════════════════════════════════════════════════════════ */
+
+.coc-sf-wrapper {
+    /* visual styles handled by .coc-courier-panel */
+}
+
+.coc-sf-title-bar svg {
+    flex-shrink: 0;
+    opacity: .9;
+}
+
+.coc-sf-badge {
+    display: inline-block;
+    margin: 10px 14px 0;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.coc-sf-badge--sent {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.coc-sf-info-grid {
+    padding: 10px 14px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.coc-sf-info-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.coc-sf-label {
+    flex-shrink: 0;
+    min-width: 130px;
+    color: #6b7280;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.coc-sf-value {
+    color: #111827;
+    font-weight: 500;
+    word-break: break-all;
+}
+
+.coc-sf-status {
+    padding: 1px 8px;
+    border-radius: 12px;
+    background: #f3f4f6;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.coc-sf-form {
+    padding: 12px 14px;
+}
+
+.coc-sf-row {
+    margin-bottom: 10px;
+}
+
+.coc-sf-row--2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.coc-sf-row .coc-sf-label,
+.coc-sf-row--2 .coc-sf-label {
+    display: block;
+    margin-bottom: 4px;
+    color: #374151;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.coc-sf-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-top: 1px solid #f3f4f6;
+    flex-wrap: wrap;
+}
+
+.coc-sf-return-form {
+    padding: 10px 14px;
+    border-top: 1px solid #f3f4f6;
+    background: #f9fafb;
+}
+
+.coc-sf-msg {
+    margin: 8px 14px;
+    padding: 7px 12px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.coc-sf-msg--ok  { background: #dcfce7; color: #15803d; }
+.coc-sf-msg--err { background: #fee2e2; color: #b91c1c; }
+
+@media ( max-width: 600px ) {
+    .coc-sf-row--2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* =========================================================
+   GrowEver Get Started Card
+   ========================================================= */
+
+.coc-growever-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    background: linear-gradient(135deg, #f0f6ff 0%, #e8f0fe 100%);
+    border: 1px solid #c3d4f8;
+    border-radius: 10px;
+    padding: 22px 26px;
+    margin: 16px 0 28px;
+    max-width: 860px;
+}
+
+.coc-growever-card__logo {
+    flex-shrink: 0;
+    margin-top: 4px;
+}
+
+.coc-growever-card__body {
+    flex: 1;
+}
+
+.coc-growever-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.coc-growever-btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700 !important;
+    padding: 8px 18px !important;
+    border-radius: 6px !important;
+    font-size: 13px !important;
+    letter-spacing: .02em;
+}
+
+.coc-growever-btn.button-primary {
+    background: #2563eb !important;
+    border-color: #1d4ed8 !important;
+    color: #fff !important;
+    box-shadow: 0 2px 8px rgba(37,99,235,.3) !important;
+}
+
+.coc-growever-btn.button-primary:hover {
+    background: #1d4ed8 !important;
+    border-color: #1e40af !important;
+}
+
+.coc-growever-btn--wa {
+    background: #25d366 !important;
+    border-color: #1ebe5d !important;
+    color: #fff !important;
+    box-shadow: 0 2px 8px rgba(37,211,102,.3) !important;
+}
+
+.coc-growever-btn--wa:hover {
+    background: #1ebe5d !important;
+    border-color: #17a34a !important;
+    color: #fff !important;
+}
+
+/* ── Connect / Connected boxes ───────────────────────────────────────── */
+
+.coc-connect-box {
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    padding: 18px 22px;
+    max-width: 700px;
+    margin-top: 16px;
+}
+
+.coc-connected-notice {
+    display: flex;
+    align-items: center;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    padding: 14px 20px;
+    max-width: 700px;
+    margin-top: 16px;
+    font-size: 14px;
+}
+
+.coc-test-result {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.coc-test-result.success { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.coc-test-result.error   { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+
+/* =========================================================
+   Print Invoice — meta box button
+   ========================================================= */
+
+#coc-print-invoice .inside {
+    padding: 8px 12px 12px;
+}
+
+.coc-invoice-btn {
+    display: block !important;
+    width: 100% !important;
+    text-align: center !important;
+    padding: 8px 0 !important;
+    background: #1e3a5f !important;
+    color: #fff !important;
+    border-color: #1e3a5f !important;
+    font-weight: 700 !important;
+    border-radius: 6px !important;
+    font-size: 13px !important;
+    letter-spacing: .02em;
+    transition: background .15s;
+}
+
+.coc-invoice-btn:hover {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #fff !important;
+}

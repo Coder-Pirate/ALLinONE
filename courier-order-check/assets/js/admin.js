@@ -15,7 +15,7 @@
         $btn.on( 'click', function () {
             $btn.prop( 'disabled', true ).text( COC.l10n.testing );
             $spinner.addClass( 'is-active' );
-            $result.hide().removeClass( 'is-success is-error' ).text( '' );
+            $result.hide().removeClass( 'success error' ).text( '' );
 
             $.post(
                 COC.ajax_url,
@@ -28,16 +28,29 @@
                         var d   = response.data;
                         var msg = ( d && d.message ) ? d.message : 'Connection successful!';
                         if ( d && d.data && d.data.server_time ) { msg += ' (Server time: ' + d.data.server_time + ')'; }
-                        $result.addClass( 'is-success' ).text( msg ).show();
+                        $result.addClass( 'success' ).text( msg ).show();
+                        // Reload so the rest of the settings appear.
+                        setTimeout( function () { window.location.reload(); }, 1200 );
                     } else {
                         var errMsg = ( response.data && response.data.message ) ? response.data.message : 'Connection failed.';
-                        $result.addClass( 'is-error' ).text( errMsg ).show();
+                        $result.addClass( 'error' ).text( errMsg ).show();
                     }
                 }
             ).fail( function () {
                 $spinner.removeClass( 'is-active' );
                 $btn.prop( 'disabled', false ).text( COC.l10n.test_btn );
-                $result.addClass( 'is-error' ).text( 'Request failed. Please try again.' ).show();
+                $result.addClass( 'error' ).text( 'Request failed. Please try again.' ).show();
+            } );
+        } );
+
+        /* Disconnect link */
+        $( '#coc-disconnect-btn' ).on( 'click', function ( e ) {
+            e.preventDefault();
+            if ( ! window.confirm( 'Disconnect from GrowEver API? Other settings will be hidden until you reconnect.' ) ) {
+                return;
+            }
+            $.post( COC.ajax_url, { action: 'coc_disconnect', nonce: COC.nonce }, function () {
+                window.location.reload();
             } );
         } );
 
@@ -87,7 +100,6 @@
                     }
                     $ipInput.val( '' );
                     $ipEmpty.remove();
-                    // Only add row if not already present.
                     if ( ! $ipList.find( '[data-ip="' + ip + '"]' ).length ) {
                         $ipList.append( buildRow( ip ) );
                     }
@@ -101,7 +113,7 @@
 
         $ipInput.on( 'keydown', function ( e ) { if ( e.which === 13 ) { $ipAddBtn.trigger( 'click' ); } } );
 
-        // Unblock IP (delegated — works for dynamically added rows too).
+        // Unblock IP (delegated).
         $ipList.on( 'click', '.coc-unblock-btn', function () {
             var $row = $( this ).closest( 'tr' );
             var ip   = $( this ).data( 'ip' );
@@ -131,53 +143,113 @@
             } );
         } );
 
-    } );
-}( jQuery ) );
+        /* ============================================================
+           Pathao — Settings page: Connect + Load Stores
+           ============================================================ */
 
-            $spinner.addClass( 'is-active' );
-            $result.hide().removeClass( 'is-success is-error' ).text( '' );
+        var $pathaoConnectBtn    = $( '#coc-pathao-connect-btn' );
+        var $pathaoConnectResult = $( '#coc-pathao-connect-result' );
+        var $pathaoStoreSelect   = $( '#coc_pathao_store_id' );
+        var $pathaoLoadStoresBtn = $( '#coc-pathao-load-stores-btn' );
 
-            $.post(
-                COC.ajax_url,
-                {
-                    action: 'coc_test_connection',
-                    nonce:  COC.nonce,
-                },
-                function ( response ) {
-                    $spinner.removeClass( 'is-active' );
-                    $btn.prop( 'disabled', false ).text( COC.l10n.test_btn );
+        if ( $pathaoConnectBtn.length ) {
+            $pathaoConnectBtn.on( 'click', function () {
+                $pathaoConnectResult.text( 'Connecting…' ).css( 'color', '#555' );
+                $pathaoConnectBtn.prop( 'disabled', true );
 
-                    if ( response.success ) {
-                        var d = response.data;
-                        var msg = 'Connection successful! ';
-                        if ( d && d.message ) {
-                            msg = d.message;
+                $.post(
+                    COC.ajax_url,
+                    {
+                        action        : 'coc_pathao_admin_connect',
+                        nonce         : COC.pathao_nonce,
+                        env           : $( '#coc_pathao_env' ).val(),
+                        client_id     : $( '#coc_pathao_client_id' ).val(),
+                        client_secret : $( '#coc_pathao_client_secret' ).val(),
+                        username      : $( '#coc_pathao_username' ).val(),
+                        password      : $( '#coc_pathao_password' ).val(),
+                    },
+                    function ( r ) {
+                        $pathaoConnectBtn.prop( 'disabled', false );
+                        if ( r && r.success ) {
+                            $pathaoConnectResult.text( '✓ ' + ( r.data.message || 'Connected!' ) ).css( 'color', '#15803d' );
+                        } else {
+                            var msg = ( r && r.data && r.data.message ) || 'Connection failed.';
+                            $pathaoConnectResult.text( '✗ ' + msg ).css( 'color', '#b91c1c' );
                         }
-                        if ( d && d.data && d.data.server_time ) {
-                            msg += ' (Server time: ' + d.data.server_time + ')';
-                        }
-                        $result
-                            .addClass( 'is-success' )
-                            .text( msg )
-                            .show();
-                    } else {
-                        var errMsg = ( response.data && response.data.message )
-                            ? response.data.message
-                            : 'Connection failed. Check your API key and domain.';
-                        $result
-                            .addClass( 'is-error' )
-                            .text( errMsg )
-                            .show();
                     }
-                }
-            ).fail( function () {
-                $spinner.removeClass( 'is-active' );
-                $btn.prop( 'disabled', false ).text( COC.l10n.test_btn );
-                $result
-                    .addClass( 'is-error' )
-                    .text( 'Request failed. Please try again.' )
-                    .show();
+                ).fail( function () {
+                    $pathaoConnectBtn.prop( 'disabled', false );
+                    $pathaoConnectResult.text( '✗ Request failed.' ).css( 'color', '#b91c1c' );
+                } );
             } );
-        } );
+        }
+
+        if ( $pathaoLoadStoresBtn.length ) {
+            $pathaoLoadStoresBtn.on( 'click', function () {
+                $pathaoLoadStoresBtn.prop( 'disabled', true ).text( 'Loading…' );
+
+                $.post(
+                    COC.ajax_url,
+                    { action: 'coc_pathao_admin_get_stores', nonce: COC.pathao_nonce },
+                    function ( r ) {
+                        $pathaoLoadStoresBtn.prop( 'disabled', false ).text( 'Load Stores' );
+                        if ( r && r.success && r.data ) {
+                            var currentVal = $pathaoStoreSelect.val();
+                            $pathaoStoreSelect.empty();
+                            $pathaoStoreSelect.append( $( '<option>', { value: '', text: '— Select default store —' } ) );
+                            $.each( r.data, function ( i, store ) {
+                                $pathaoStoreSelect.append( $( '<option>', {
+                                    value   : store.store_id,
+                                    text    : store.store_name + ' (ID: ' + store.store_id + ')',
+                                    selected: String( store.store_id ) === String( currentVal ),
+                                } ) );
+                            } );
+                        } else {
+                            alert( ( r && r.data && r.data.message ) || 'Could not load stores.' );
+                        }
+                    }
+                ).fail( function () {
+                    $pathaoLoadStoresBtn.prop( 'disabled', false ).text( 'Load Stores' );
+                    alert( 'Request failed.' );
+                } );
+            } );
+        }
+
+        /* ============================================================
+           Steadfast — Settings page: Test & Check Balance
+           ============================================================ */
+
+        var $sfCheckBtn    = $( '#coc-sf-check-btn' );
+        var $sfCheckResult = $( '#coc-sf-check-result' );
+
+        if ( $sfCheckBtn.length ) {
+            $sfCheckBtn.on( 'click', function () {
+                $sfCheckResult.text( 'Checking…' ).css( 'color', '#555' );
+                $sfCheckBtn.prop( 'disabled', true );
+
+                $.post(
+                    COC.ajax_url,
+                    {
+                        action     : 'coc_sf_admin_check',
+                        nonce      : COC.sf_nonce,
+                        api_key    : $( '#coc_sf_api_key' ).val(),
+                        secret_key : $( '#coc_sf_secret_key' ).val(),
+                    },
+                    function ( r ) {
+                        $sfCheckBtn.prop( 'disabled', false );
+                        if ( r && r.success ) {
+                            $sfCheckResult.text( '✓ Balance: ৳' + r.data.balance ).css( 'color', '#15803d' );
+                        } else {
+                            var msg = ( r && r.data && r.data.message ) || 'Connection failed.';
+                            $sfCheckResult.text( '✗ ' + msg ).css( 'color', '#b91c1c' );
+                        }
+                    }
+                ).fail( function () {
+                    $sfCheckBtn.prop( 'disabled', false );
+                    $sfCheckResult.text( '✗ Request failed.' ).css( 'color', '#b91c1c' );
+                } );
+            } );
+        }
+
     } );
 }( jQuery ) );

@@ -12,7 +12,6 @@ class COC_Order_Meta {
         add_action( 'woocommerce_admin_order_data_after_shipping_address', [ __CLASS__, 'render_panel' ], 10, 1 );
 
         add_action( 'admin_enqueue_scripts',     [ __CLASS__, 'enqueue_order_assets' ] );
-        add_action( 'wp_ajax_coc_courier_check', [ __CLASS__, 'ajax_courier_check' ] );
     }
 
     /* ------------------------------------------------------------------
@@ -71,17 +70,12 @@ class COC_Order_Meta {
             }
         }
 
-        $api_key = get_option( 'coc_api_key', '' );
-        $domain  = get_option( 'coc_domain',  '' );
-
-        $phone      = self::extract_phone( $order );
         $customer_ip = $order->get_customer_ip_address();
         $is_blocked  = $customer_ip ? COC_IP_Blocker::is_blocked( $customer_ip ) : false;
 
         ?>
         <div class="clear"></div>
         <div class="coc-wrapper">
-            <h3 class="coc-section-title"><?php esc_html_e( 'Courier Success Ratio', 'courier-order-check' ); ?></h3>
 
             <?php if ( $customer_ip ) : ?>
             <div class="coc-ip-bar <?php echo $is_blocked ? 'coc-ip-bar--blocked' : ''; ?>"
@@ -104,115 +98,8 @@ class COC_Order_Meta {
             </div>
             <?php endif; ?>
 
-            <?php if ( empty( $api_key ) || empty( $domain ) ) : ?>
-                <p class="coc-warning">
-                    <?php
-                    echo wp_kses(
-                        sprintf(
-                            __( 'API key or domain not configured. <a href="%s">Configure now</a>.', 'courier-order-check' ),
-                            esc_url( admin_url( 'admin.php?page=courier-order-check' ) )
-                        ),
-                        [ 'a' => [ 'href' => [] ] ]
-                    );
-                    ?>
-                </p>
-            <?php else : ?>
-                <div class="coc-check-panel" data-phone="<?php echo esc_attr( $phone ); ?>">
-
-                    <div class="coc-search-row">
-                        <input type="text"
-                               id="coc-phone-input"
-                               class="coc-phone-input"
-                               value="<?php echo esc_attr( $phone ); ?>"
-                               placeholder="01XXXXXXXXX" />
-                        <button type="button" id="coc-search-btn" class="coc-search-btn">
-                            <?php esc_html_e( 'Search', 'courier-order-check' ); ?>
-                        </button>
-                    </div>
-
-                    <div id="coc-loading" class="coc-loading" style="display:none;">
-                        <span class="coc-spinner"></span>
-                        <?php esc_html_e( 'Loading...', 'courier-order-check' ); ?>
-                    </div>
-
-                    <div id="coc-error-msg" class="coc-error" style="display:none;"></div>
-
-                    <div id="coc-results" style="display:none;">
-                        <table class="coc-table">
-                            <thead>
-                                <tr>
-                                    <th><?php esc_html_e( 'Courier', 'courier-order-check' ); ?></th>
-                                    <th><?php esc_html_e( 'Total',   'courier-order-check' ); ?></th>
-                                    <th><?php esc_html_e( 'Success', 'courier-order-check' ); ?></th>
-                                    <th><?php esc_html_e( 'Cancel',  'courier-order-check' ); ?></th>
-                                </tr>
-                            </thead>
-                            <tbody id="coc-table-body"></tbody>
-                        </table>
-
-                        <div class="coc-badges-row" id="coc-badges-row"></div>
-                        <div class="coc-ratio-full-bar" id="coc-ratio-full-bar"></div>
-                    </div>
-
-                </div>
-            <?php endif; ?>
         </div>
         <?php
     }
 
-    /* ------------------------------------------------------------------
-     * AJAX - phone search
-     * ------------------------------------------------------------------ */
-
-    public static function ajax_courier_check() {
-        check_ajax_referer( 'coc_courier_check', 'nonce' );
-
-        if ( ! current_user_can( 'edit_shop_orders' ) ) {
-            wp_send_json_error( [ 'message' => __( 'Permission denied.', 'courier-order-check' ) ] );
-        }
-
-        $phone = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
-        $phone = preg_replace( '/[^\d+]/', '', $phone );
-
-        if ( empty( $phone ) ) {
-            wp_send_json_error( [ 'message' => __( 'Phone number is required.', 'courier-order-check' ) ] );
-        }
-
-        $transient_key = 'coc_ratio_' . md5( $phone );
-        $cached        = get_transient( $transient_key );
-
-        if ( false !== $cached ) {
-            wp_send_json_success( $cached );
-        }
-
-        $result = COC_API::courier_check( $phone );
-
-        if ( is_wp_error( $result ) ) {
-            wp_send_json_error( [ 'message' => $result->get_error_message() ] );
-        }
-
-        set_transient( $transient_key, $result, 30 * MINUTE_IN_SECONDS );
-        wp_send_json_success( $result );
-    }
-
-    /* ------------------------------------------------------------------
-     * Helpers
-     * ------------------------------------------------------------------ */
-
-    private static function extract_phone( WC_Order $order ) {
-        $phone = $order->get_billing_phone();
-        if ( empty( $phone ) ) {
-            return '';
-        }
-
-        $phone = preg_replace( '/[^\d+]/', '', $phone );
-
-        if ( strpos( $phone, '+880' ) === 0 ) {
-            $phone = '0' . substr( $phone, 4 );
-        } elseif ( strpos( $phone, '880' ) === 0 && strlen( $phone ) === 13 ) {
-            $phone = '0' . substr( $phone, 3 );
-        }
-
-        return $phone;
-    }
 }
