@@ -14,11 +14,12 @@ class COC_Order_Meta {
         add_action( 'admin_enqueue_scripts',     [ __CLASS__, 'enqueue_order_assets' ] );
         add_action( 'wp_ajax_coc_courier_check', [ __CLASS__, 'ajax_courier_check' ] );
 
-        // Orders list — success ratio column (classic + HPOS). [COMMENTED OUT — re-enable when needed]
-        // add_filter( 'manage_edit-shop_order_columns',                  [ __CLASS__, 'add_orders_column' ] );
-        // add_action( 'manage_shop_order_posts_custom_column',           [ __CLASS__, 'render_orders_column_classic' ], 10, 2 );
-        // add_filter( 'manage_woocommerce_page_wc-orders_columns',       [ __CLASS__, 'add_orders_column' ] );
-        // add_action( 'manage_woocommerce_page_wc-orders_custom_column', [ __CLASS__, 'render_orders_column_hpos' ], 10, 2 );
+        // Orders list — success ratio column (classic + HPOS).
+        // Only shown for orders the admin has already opened (visited flag set in render_panel).
+        add_filter( 'manage_edit-shop_order_columns',                  [ __CLASS__, 'add_orders_column' ] );
+        add_action( 'manage_shop_order_posts_custom_column',           [ __CLASS__, 'render_orders_column_classic' ], 10, 2 );
+        add_filter( 'manage_woocommerce_page_wc-orders_columns',       [ __CLASS__, 'add_orders_column' ] );
+        add_action( 'manage_woocommerce_page_wc-orders_custom_column', [ __CLASS__, 'render_orders_column_hpos' ], 10, 2 );
     }
 
     /* ------------------------------------------------------------------
@@ -90,6 +91,12 @@ class COC_Order_Meta {
         $is_blocked  = $customer_ip ? COC_IP_Blocker::is_blocked( $customer_ip ) : false;
         $phone       = self::extract_phone( $order );
         $api_connected = true; // already confirmed above
+
+        // Mark this order as visited so the orders list can show the ratio bar.
+        if ( $phone && ! $order->get_meta( '_coc_ratio_visited' ) ) {
+            $order->update_meta_data( '_coc_ratio_visited', '1' );
+            $order->save_meta_data();
+        }
 
         ?>
         <div class="clear"></div>
@@ -222,10 +229,10 @@ class COC_Order_Meta {
     }
 
     /* ------------------------------------------------------------------
-     * Orders list — Success Ratio column [COMMENTED OUT — re-enable when needed]
+     * Orders list — Success Ratio column
+     * Only shown for orders the admin has already opened (see render_panel).
      * ------------------------------------------------------------------ */
 
-    /*
     public static function add_orders_column( $columns ) {
         if ( ! get_option( 'coc_api_connected', '' ) ) {
             return $columns;
@@ -248,6 +255,7 @@ class COC_Order_Meta {
         return $new;
     }
 
+    /** Classic orders list custom column renderer. */
     public static function render_orders_column_classic( $column, $post_id ) {
         if ( 'coc_success_ratio' !== $column ) {
             return;
@@ -258,6 +266,7 @@ class COC_Order_Meta {
         }
     }
 
+    /** HPOS orders list custom column renderer. */
     public static function render_orders_column_hpos( $column, $order ) {
         if ( 'coc_success_ratio' !== $column ) {
             return;
@@ -267,7 +276,13 @@ class COC_Order_Meta {
         }
     }
 
+    /** Outputs the mini progress bar for a single order row. */
     private static function render_ratio_cell( WC_Abstract_Order $order ) {
+        // Only show the bar if admin has previously opened this order's detail page.
+        if ( ! $order->get_meta( '_coc_ratio_visited' ) ) {
+            return;
+        }
+
         $phone = self::extract_phone( $order );
 
         if ( ! $phone ) {
@@ -275,22 +290,19 @@ class COC_Order_Meta {
             return;
         }
 
-        // Check transient — render instantly if data is already cached.
+        // Only render if data is already cached from a previous order detail visit.
+        // No AJAX fallback — the bar is populated exclusively when admin opens the order.
         $cached = get_transient( 'coc_ratio_' . md5( $phone ) );
-        if ( $cached && isset( $cached['data']['summary'] ) ) {
-            $s  = $cached['data']['summary'];
-            $sr = round( (float) ( $s['success_ratio'] ?? 0 ), 1 );
-            self::render_mini_bar_html( $sr, (int) ( $s['total_parcel'] ?? 0 ) );
+        if ( ! $cached || ! isset( $cached['data']['summary'] ) ) {
             return;
         }
 
-        // Not cached — output placeholder; JS will fetch via AJAX.
-        printf(
-            '<div class="coc-mini-ratio" data-phone="%s"><span class="coc-mini-spinner"></span></div>',
-            esc_attr( $phone )
-        );
+        $s  = $cached['data']['summary'];
+        $sr = round( (float) ( $s['success_ratio'] ?? 0 ), 1 );
+        self::render_mini_bar_html( $sr, (int) ( $s['total_parcel'] ?? 0 ) );
     }
 
+    /** Renders the final mini bar HTML (used for both cached and AJAX-rendered output). */
     private static function render_mini_bar_html( $sr, $total ) {
         $cr  = max( 0, 100 - $sr );
         $cls = $sr >= 80 ? 'coc-mini-bar--green' : ( $sr >= 60 ? 'coc-mini-bar--orange' : 'coc-mini-bar--red' );
@@ -309,5 +321,4 @@ class COC_Order_Meta {
             esc_html( number_format( $total ) )
         );
     }
-    */
 }

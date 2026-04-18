@@ -858,20 +858,22 @@ a.coc-pathao-loc-edit:hover {
 }
 
 /* =========================================================
-   Orders list — Success Ratio mini progress bar [COMMENTED OUT — re-enable when needed]
+   Orders list — Success Ratio mini progress bar
    ========================================================= */
 
-/*
+/* Column width hint */
 .column-coc_success_ratio {
     width: 130px;
 }
 
+/* Wrapper */
 .coc-mini-ratio {
     min-width: 100px;
     font-size: 12px;
     line-height: 1.4;
 }
 
+/* Spinner shown while AJAX is loading */
 .coc-mini-spinner {
     display: inline-block;
     width: 14px;
@@ -883,6 +885,7 @@ a.coc-pathao-loc-edit:hover {
     vertical-align: middle;
 }
 
+/* Progress bar track */
 .coc-mini-bar-wrap {
     height: 8px;
     background: #e9e9e9;
@@ -891,6 +894,7 @@ a.coc-pathao-loc-edit:hover {
     margin-bottom: 4px;
 }
 
+/* Progress bar fill */
 .coc-mini-bar-fill {
     height: 100%;
     border-radius: 4px;
@@ -901,6 +905,7 @@ a.coc-pathao-loc-edit:hover {
 .coc-mini-bar--orange { background: linear-gradient(90deg, #d97706, #f59e0b); }
 .coc-mini-bar--red    { background: linear-gradient(90deg, #dc2626, #ef4444); }
 
+/* Label row: "75%  / 120 orders" */
 .coc-mini-bar-label {
     color: #374151;
     font-size: 11px;
@@ -917,9 +922,9 @@ a.coc-pathao-loc-edit:hover {
     color: #9ca3af;
 }
 
+/* No phone / error states */
 .coc-mini-no-phone,
 .coc-mini-err {
     color: #d1d5db;
     font-size: 14px;
 }
-*/
