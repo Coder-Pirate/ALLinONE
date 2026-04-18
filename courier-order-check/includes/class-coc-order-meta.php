@@ -14,11 +14,11 @@ class COC_Order_Meta {
         add_action( 'admin_enqueue_scripts',     [ __CLASS__, 'enqueue_order_assets' ] );
         add_action( 'wp_ajax_coc_courier_check', [ __CLASS__, 'ajax_courier_check' ] );
 
-        // Orders list — success ratio column (classic + HPOS).
-        add_filter( 'manage_edit-shop_order_columns',                  [ __CLASS__, 'add_orders_column' ] );
-        add_action( 'manage_shop_order_posts_custom_column',           [ __CLASS__, 'render_orders_column_classic' ], 10, 2 );
-        add_filter( 'manage_woocommerce_page_wc-orders_columns',       [ __CLASS__, 'add_orders_column' ] );
-        add_action( 'manage_woocommerce_page_wc-orders_custom_column', [ __CLASS__, 'render_orders_column_hpos' ], 10, 2 );
+        // Orders list — success ratio column (classic + HPOS). [COMMENTED OUT — re-enable when needed]
+        // add_filter( 'manage_edit-shop_order_columns',                  [ __CLASS__, 'add_orders_column' ] );
+        // add_action( 'manage_shop_order_posts_custom_column',           [ __CLASS__, 'render_orders_column_classic' ], 10, 2 );
+        // add_filter( 'manage_woocommerce_page_wc-orders_columns',       [ __CLASS__, 'add_orders_column' ] );
+        // add_action( 'manage_woocommerce_page_wc-orders_custom_column', [ __CLASS__, 'render_orders_column_hpos' ], 10, 2 );
     }
 
     /* ------------------------------------------------------------------
@@ -222,12 +222,10 @@ class COC_Order_Meta {
     }
 
     /* ------------------------------------------------------------------
-     * Orders list — Success Ratio column
+     * Orders list — Success Ratio column [COMMENTED OUT — re-enable when needed]
      * ------------------------------------------------------------------ */
 
-    /**
-     * Adds the "Success Ratio" column to both classic and HPOS orders lists.
-     */
+    /*
     public static function add_orders_column( $columns ) {
         if ( ! get_option( 'coc_api_connected', '' ) ) {
             return $columns;
@@ -250,7 +248,6 @@ class COC_Order_Meta {
         return $new;
     }
 
-    /** Classic orders list custom column renderer. */
     public static function render_orders_column_classic( $column, $post_id ) {
         if ( 'coc_success_ratio' !== $column ) {
             return;
@@ -261,7 +258,6 @@ class COC_Order_Meta {
         }
     }
 
-    /** HPOS orders list custom column renderer. */
     public static function render_orders_column_hpos( $column, $order ) {
         if ( 'coc_success_ratio' !== $column ) {
             return;
@@ -271,7 +267,6 @@ class COC_Order_Meta {
         }
     }
 
-    /** Outputs the mini progress bar placeholder for a single order row. */
     private static function render_ratio_cell( WC_Abstract_Order $order ) {
         $phone = self::extract_phone( $order );
 
@@ -296,7 +291,6 @@ class COC_Order_Meta {
         );
     }
 
-    /** Renders the final mini bar HTML (used for both cached and AJAX-rendered output). */
     private static function render_mini_bar_html( $sr, $total ) {
         $cr  = max( 0, 100 - $sr );
         $cls = $sr >= 80 ? 'coc-mini-bar--green' : ( $sr >= 60 ? 'coc-mini-bar--orange' : 'coc-mini-bar--red' );
@@ -315,4 +309,5 @@ class COC_Order_Meta {
             esc_html( number_format( $total ) )
         );
     }
+    */
 }

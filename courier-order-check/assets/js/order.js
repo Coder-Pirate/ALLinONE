@@ -149,9 +149,10 @@
         } );
 
         /* ============================================================
-           Orders list — auto-load success ratio mini bars
+           Orders list — auto-load success ratio mini bars [COMMENTED OUT — re-enable when needed]
            ============================================================ */
 
+        /*
         var $ratios = $( '.coc-mini-ratio[data-phone]' );
 
         if ( $ratios.length ) {
@@ -205,6 +206,7 @@
                 } )( phone );
             } );
         }
+        */
 
     } );
 }( jQuery ) );
