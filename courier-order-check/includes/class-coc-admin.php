@@ -2,7 +2,7 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Registers the plugin settings page under WooCommerce > GrowEver.
+ * Registers the plugin settings page under WooCommerce > Track Cart BD.
  */
 class COC_Admin {
 
@@ -22,21 +22,21 @@ class COC_Admin {
      * ------------------------------------------------------------------ */
 
     public static function add_menu() {
-        // Top-level GrowEver menu (renders the main Settings page).
+        // Top-level Track Cart BD menu (renders the main Settings page).
         add_menu_page(
-            __( 'GrowEver', 'courier-order-check' ),
-            __( 'GrowEver', 'courier-order-check' ),
+            __( 'Track Cart BD', 'courier-order-check' ),
+            __( 'Track Cart BD', 'courier-order-check' ),
             'manage_woocommerce',
             'courier-order-check',
             [ __CLASS__, 'render_settings_page' ],
-            'dashicons-chart-bar',
+            'dashicons-cart',
             56
         );
 
         // First submenu entry mirrors the parent (Settings).
         add_submenu_page(
             'courier-order-check',
-            __( 'GrowEver Settings', 'courier-order-check' ),
+            __( 'Track Cart BD Settings', 'courier-order-check' ),
             __( 'Settings', 'courier-order-check' ),
             'manage_woocommerce',
             'courier-order-check',
@@ -63,7 +63,7 @@ class COC_Admin {
         foreach ( $submenus as [ $slug, $title, $callback ] ) {
             add_submenu_page(
                 'courier-order-check',
-                $title . ' — GrowEver',
+                $title . ' — Track Cart BD',
                 $title,
                 'manage_woocommerce',
                 $slug,
@@ -596,13 +596,13 @@ class COC_Admin {
     public static function render_api_key_field() {
         $val = esc_attr( get_option( 'coc_api_key', '' ) );
         echo '<input type="password" id="coc_api_key" name="coc_api_key" class="regular-text" value="' . $val . '" autocomplete="new-password" />';
-        echo '<p class="description">' . esc_html__( 'Your Bearer token from the GrowEver dashboard.', 'courier-order-check' ) . '</p>';
+        echo '<p class="description">' . esc_html__( 'Your Bearer token from the Track Cart BD dashboard.', 'courier-order-check' ) . '</p>';
     }
 
     public static function render_domain_field() {
         $val = esc_attr( get_option( 'coc_domain', '' ) );
         echo '<input type="text" id="coc_domain" name="coc_domain" class="regular-text" value="' . $val . '" placeholder="example.com" />';
-        echo '<p class="description">' . esc_html__( 'The domain registered with GrowEver (no protocol, no trailing slash).', 'courier-order-check' ) . '</p>';
+        echo '<p class="description">' . esc_html__( 'The domain registered with Track Cart BD (no protocol, no trailing slash).', 'courier-order-check' ) . '</p>';
     }
 
     /* ------------------------------------------------------------------
@@ -722,17 +722,17 @@ class COC_Admin {
         $connected = self::is_api_connected();
         ?>
         <div class="wrap coc-settings-wrap">
-            <h1><?php esc_html_e( 'GrowEver', 'courier-order-check' ); ?></h1>
+            <h1><?php esc_html_e( 'Track Cart BD', 'courier-order-check' ); ?></h1>
 
-            <!-- ── GrowEver Get Started Card ──────────────────────── -->
+            <!-- ── Track Cart BD Get Started Card ──────────────────────── -->
             <div class="coc-growever-card">
                 <div class="coc-growever-card__logo">
-                    <span class="dashicons dashicons-chart-bar" style="font-size:36px;width:36px;height:36px;color:#2563eb;"></span>
+                    <span class="dashicons dashicons-cart" style="font-size:36px;width:36px;height:36px;color:#2563eb;"></span>
                 </div>
                 <div class="coc-growever-card__body">
-                    <h2 style="margin:0 0 6px;font-size:18px;color:#1e3a5f;"><?php esc_html_e( 'Get Started with GrowEver', 'courier-order-check' ); ?></h2>
+                    <h2 style="margin:0 0 6px;font-size:18px;color:#1e3a5f;"><?php esc_html_e( 'Get Started with Track Cart BD', 'courier-order-check' ); ?></h2>
                     <p style="margin:0 0 14px;color:#4b5563;">
-                        <?php esc_html_e( 'Create a free account on the GrowEver platform to get your API key, access courier success ratio data, and unlock all features of this plugin.', 'courier-order-check' ); ?>
+                        <?php esc_html_e( 'Create a free account on the Track Cart BD platform to get your API key, access courier success ratio data, and unlock all features of this plugin.', 'courier-order-check' ); ?>
                     </p>
                     <div class="coc-growever-card__actions">
                         <a href="https://app.growever.bd/" target="_blank" rel="noopener noreferrer" class="button button-primary coc-growever-btn">
@@ -760,7 +760,7 @@ class COC_Admin {
             <?php $last_error = get_option( 'coc_api_last_error', '' ); ?>
             <?php if ( $last_error ) : ?>
             <div class="notice notice-error" style="margin:16px 0;padding:12px 16px;">
-                <p><strong><?php esc_html_e( 'GrowEver API disconnected:', 'courier-order-check' ); ?></strong>
+                <p><strong><?php esc_html_e( 'Track Cart BD API disconnected:', 'courier-order-check' ); ?></strong>
                 <?php echo esc_html( $last_error ); ?></p>
                 <p style="color:#555;margin:4px 0 0;"><?php esc_html_e( 'All plugin features are disabled. Update your API Key / Domain and click Test Connection to restore access.', 'courier-order-check' ); ?></p>
             </div>
@@ -776,7 +776,7 @@ class COC_Admin {
             <?php else : ?>
             <div class="coc-connected-notice">
                 <span class="dashicons dashicons-yes-alt" style="color:#16a34a;font-size:20px;vertical-align:middle;margin-right:6px;"></span>
-                <strong style="color:#15803d;"><?php esc_html_e( 'Connected to GrowEver API.', 'courier-order-check' ); ?></strong>
+                <strong style="color:#15803d;"><?php esc_html_e( 'Connected to Track Cart BD API.', 'courier-order-check' ); ?></strong>
                 <a href="#" id="coc-disconnect-btn" style="margin-left:14px;color:#dc2626;font-size:12px;"><?php esc_html_e( 'Disconnect', 'courier-order-check' ); ?></a>
             </div>
             <?php endif; ?>
@@ -837,21 +837,21 @@ class COC_Admin {
         $css_ver = file_exists( COC_PLUGIN_DIR . 'assets/css/admin.css' ) ? filemtime( COC_PLUGIN_DIR . 'assets/css/admin.css' ) : COC_VERSION;
         $js_ver  = file_exists( COC_PLUGIN_DIR . 'assets/js/admin.js' )  ? filemtime( COC_PLUGIN_DIR . 'assets/js/admin.js' )  : COC_VERSION;
 
-        // All GrowEver admin pages that need CSS + JS.
-        $growever_hooks = [
+        // All Track Cart BD admin pages that need CSS + JS.
+        $plugin_hooks = [
             'toplevel_page_courier-order-check',
-            'growever_page_coc-tracking',
-            'growever_page_coc-meta',
-            'growever_page_coc-tiktok',
-            'growever_page_coc-ga4',
-            'growever_page_coc-gtm',
-            'growever_page_coc-fb-catalog',
-            'growever_page_coc-pathao',
-            'growever_page_coc-steadfast',
-            'growever_page_coc-ip-blocklist',
+            'track-cart-bd_page_coc-tracking',
+            'track-cart-bd_page_coc-meta',
+            'track-cart-bd_page_coc-tiktok',
+            'track-cart-bd_page_coc-ga4',
+            'track-cart-bd_page_coc-gtm',
+            'track-cart-bd_page_coc-fb-catalog',
+            'track-cart-bd_page_coc-pathao',
+            'track-cart-bd_page_coc-steadfast',
+            'track-cart-bd_page_coc-ip-blocklist',
         ];
 
-        if ( in_array( $hook, $growever_hooks, true ) ) {
+        if ( in_array( $hook, $plugin_hooks, true ) ) {
             wp_enqueue_style( 'coc-admin', COC_PLUGIN_URL . 'assets/css/admin.css', [], $css_ver );
             wp_enqueue_script( 'coc-admin', COC_PLUGIN_URL . 'assets/js/admin.js', [ 'jquery' ], $js_ver, true );
             wp_localize_script( 'coc-admin', 'COC', [

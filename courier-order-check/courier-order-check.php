@@ -1,10 +1,10 @@
 <?php
 /**
- * Plugin Name: GrowEver
+ * Plugin Name: Track Cart BD
  * Plugin URI:  https://growever.bd
- * Description: Displays courier order success ratio on WooCommerce order details pages using the GrowEver API.
+ * Description: Courier fraud check & courier integration (Pathao, Steadfast) with Meta Pixel, TikTok Pixel, Google Tag Manager, Google Analytics 4 (server-side tracking), IP blocker, and real-time COD restriction for WooCommerce.
  * Version:     1.0.0
- * Author:      Growever
+ * Author:      Track Cart BD
  * Author URI:  https://growever.bd
  * License:     GPL-2.0+
  * Text Domain: courier-order-check
@@ -68,7 +68,7 @@ function coc_init() {
         COC_Admin::maybe_recheck_connection();
     }
 
-    // All features are blocked unless the GrowEver API connection is active.
+    // All features are blocked unless the Track Cart BD API connection is active.
     if ( get_option( 'coc_api_connected', '' ) === '1' ) {
         COC_Order_Meta::init();
         if ( get_option( 'coc_order_lock_enabled', '' ) ) {
@@ -94,7 +94,7 @@ add_action( 'plugins_loaded', 'coc_init' );
  * Combined courier panel — renders Pathao + Steadfast side by side on order edit pages.
  */
 function coc_render_courier_row( $order ) {
-    // Never show courier panels when the GrowEver API is disconnected or account inactive.
+    // Never show courier panels when the Track Cart BD API is disconnected or account inactive.
     if ( get_option( 'coc_api_connected', '' ) !== '1' ) {
         return;
     }

@@ -46,7 +46,7 @@
         /* Disconnect link */
         $( '#coc-disconnect-btn' ).on( 'click', function ( e ) {
             e.preventDefault();
-            if ( ! window.confirm( 'Disconnect from GrowEver API? Other settings will be hidden until you reconnect.' ) ) {
+            if ( ! window.confirm( 'Disconnect from Track Cart BD API? Other settings will be hidden until you reconnect.' ) ) {
                 return;
             }
             $.post( COC.ajax_url, { action: 'coc_disconnect', nonce: COC.nonce }, function () {
