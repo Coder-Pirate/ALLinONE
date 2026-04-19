@@ -299,6 +299,22 @@ class COC_Order_Meta {
         $sr    = $order->get_meta( '_coc_success_ratio' );
         $total = $order->get_meta( '_coc_total_parcels' );
 
+        // Fallback: migrate from transient cache if meta not yet saved.
+        if ( $sr === '' || $sr === false ) {
+            $phone = self::extract_phone( $order );
+            if ( $phone ) {
+                $cached = get_transient( 'coc_ratio_' . md5( $phone ) );
+                if ( $cached && isset( $cached['data']['summary'] ) ) {
+                    $sr    = round( (float) ( $cached['data']['summary']['success_ratio'] ?? 0 ), 1 );
+                    $total = (int) ( $cached['data']['summary']['total_parcel'] ?? 0 );
+                    // Persist so it survives transient expiry.
+                    $order->update_meta_data( '_coc_success_ratio', $sr );
+                    $order->update_meta_data( '_coc_total_parcels', $total );
+                    $order->save_meta_data();
+                }
+            }
+        }
+
         if ( $sr === '' || $sr === false ) {
             return;
         }
