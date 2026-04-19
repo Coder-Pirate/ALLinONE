@@ -40,6 +40,12 @@ class COC_GAA {
         // AJAX add-to-cart is handled entirely by gaa.js (browser-only, no MP).
         add_action( 'woocommerce_add_to_cart', [ __CLASS__, 'hook_add_to_cart' ], 10, 6 );
 
+        // Always persist attribution cookies at checkout (customer's browser session).
+        // Required even in "purchase on complete" mode — hook_purchase_on_complete fires
+        // in admin context where no customer cookies are available, so ga_client_id and
+        // ga_session_id must be in order meta before the admin triggers the MP hit.
+        add_action( 'woocommerce_checkout_order_processed', [ __CLASS__, 'hook_save_attribution' ], 5, 3 );
+
         // Purchase hook: fires at checkout OR when admin marks order Completed.
         if ( get_option( 'coc_purchase_on_complete', '' ) ) {
             add_action( 'woocommerce_order_status_completed', [ __CLASS__, 'hook_purchase_on_complete' ], 10, 2 );
@@ -239,6 +245,24 @@ class COC_GAA {
         foreach ( $q as $ev ) {
             self::browser_event( $ev['event'], $ev['params'] );
         }
+    }
+
+    /**
+     * Saves attribution cookies to order meta immediately at checkout.
+     * Registered at priority 5 on woocommerce_checkout_order_processed so it runs
+     * before hook_purchase (priority 10) in default mode, and is the only checkout
+     * hook in "purchase on complete" mode — ensuring ga_client_id/ga_session_id are
+     * always available when hook_purchase_on_complete fires later in admin context.
+     */
+    public static function hook_save_attribution( $order_id, $posted_data, $order ) {
+        if ( ! $order instanceof WC_Order ) {
+            $order = wc_get_order( $order_id );
+        }
+        if ( ! $order ) {
+            return;
+        }
+        self::save_attribution_to_order( $order );
+        $order->save();
     }
 
     /**
