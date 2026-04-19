@@ -147,6 +147,38 @@ class COC_Google_Ads {
         $conv_label = trim( get_option( 'coc_gads_conv_label', '' ) );
         $send_to    = $conv_label ? $conv_id . '/' . $conv_label : $conv_id;
 
+        // ── Browser-side Enhanced Conversions user_data ────────────────────────
+        // gtag() hashes the values itself — pass raw (unhashed) PII.
+        // This runs in the customer's own browser on their thank-you page.
+        $user_data = [];
+
+        $email = trim( (string) $order->get_billing_email() );
+        if ( $email ) {
+            $user_data['email'] = strtolower( $email );
+        }
+
+        $phone = self::normalize_phone( $order->get_billing_phone(), $order->get_billing_country() );
+        if ( $phone ) {
+            $user_data['phone_number'] = $phone;
+        }
+
+        $address = array_filter( [
+            'first_name'  => trim( (string) $order->get_billing_first_name() ),
+            'last_name'   => trim( (string) $order->get_billing_last_name() ),
+            'city'        => trim( (string) $order->get_billing_city() ),
+            'region'      => trim( (string) $order->get_billing_state() ),
+            'postal_code' => trim( (string) $order->get_billing_postcode() ),
+            'country'     => trim( (string) $order->get_billing_country() ),
+        ] );
+        if ( $address ) {
+            $user_data['address'] = $address;
+        }
+
+        if ( $user_data ) {
+            echo '<script>if(typeof gtag!=="undefined"){gtag("set","user_data",' .
+                 wp_json_encode( $user_data ) . ');}</script>' . "\n";
+        }
+
         $params = [
             'send_to'        => $send_to,
             'value'          => (float) $order->get_total(),
@@ -385,6 +417,38 @@ class COC_Google_Ads {
         $phone = self::normalize_phone( $order->get_billing_phone(), $order->get_billing_country() );
         if ( $phone ) {
             $args['ph'] = self::sha256( $phone );
+        }
+
+        // Additional Enhanced Conversion signals: name + address fields.
+        // Each must be SHA-256 of the lowercase, trimmed value.
+        $fn = trim( (string) $order->get_billing_first_name() );
+        if ( $fn ) {
+            $args['fn'] = self::sha256( strtolower( $fn ) );
+        }
+
+        $ln = trim( (string) $order->get_billing_last_name() );
+        if ( $ln ) {
+            $args['ln'] = self::sha256( strtolower( $ln ) );
+        }
+
+        $ct = trim( (string) $order->get_billing_city() );
+        if ( $ct ) {
+            $args['ct'] = self::sha256( strtolower( $ct ) );
+        }
+
+        $st = trim( (string) $order->get_billing_state() );
+        if ( $st ) {
+            $args['st'] = self::sha256( strtolower( $st ) );
+        }
+
+        $zp = trim( (string) $order->get_billing_postcode() );
+        if ( $zp ) {
+            $args['zp'] = self::sha256( strtolower( $zp ) );
+        }
+
+        $country = trim( (string) $order->get_billing_country() );
+        if ( $country ) {
+            $args['country'] = self::sha256( strtolower( $country ) );
         }
 
         $url = 'https://www.googleadservices.com/pagead/conversion/' .

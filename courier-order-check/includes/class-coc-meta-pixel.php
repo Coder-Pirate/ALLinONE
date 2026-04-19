@@ -511,6 +511,12 @@ class COC_Meta_Pixel {
         if ( isset( $_COOKIE['_fbc'] ) ) {
             $ud['fbc'] = sanitize_text_field( wp_unslash( $_COOKIE['_fbc'] ) );
         }
+        // Construct fbc from fbclid URL param when _fbc cookie not yet written by pixel JS.
+        // This happens on the very first page load after clicking a Facebook ad.
+        if ( empty( $ud['fbc'] ) && ! empty( $_GET['fbclid'] ) ) {
+            $ud['fbc'] = 'fb.1.' . ( (string) ( time() * 1000 ) ) . '.' .
+                         sanitize_text_field( wp_unslash( $_GET['fbclid'] ) );
+        }
 
         // Logged-in WP user data.
         if ( is_user_logged_in() ) {

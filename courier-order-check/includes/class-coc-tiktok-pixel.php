@@ -397,9 +397,11 @@ ttq.load('<?php echo $pid; ?>');
         if ( isset( $_COOKIE['_ttp'] ) ) {
             $ud['ttp'] = sanitize_text_field( wp_unslash( $_COOKIE['_ttp'] ) );
         }
-        // URL-level ttclid parameter (carried in session/cookie by pixel JS automatically).
+        // TikTok click ID: cookie first, then URL param (first-click before JS writes cookie).
         if ( isset( $_COOKIE['ttclid'] ) ) {
             $ud['ttclid'] = sanitize_text_field( wp_unslash( $_COOKIE['ttclid'] ) );
+        } elseif ( ! empty( $_GET['ttclid'] ) ) {
+            $ud['ttclid'] = sanitize_text_field( wp_unslash( $_GET['ttclid'] ) );
         }
 
         // Logged-in user.
