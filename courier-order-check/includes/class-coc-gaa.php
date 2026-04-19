@@ -49,6 +49,7 @@ class COC_GAA {
         // Purchase hook: fires at checkout OR when admin marks order Completed.
         if ( get_option( 'coc_purchase_on_complete', '' ) ) {
             add_action( 'woocommerce_order_status_completed', [ __CLASS__, 'hook_purchase_on_complete' ], 10, 2 );
+            add_action( 'coc_gaa_async_purchase', [ __CLASS__, 'process_async_purchase' ] );
         } else {
             add_action( 'woocommerce_checkout_order_processed', [ __CLASS__, 'hook_purchase' ], 10, 3 );
         }
@@ -191,6 +192,32 @@ class COC_GAA {
             return;
         }
 
+        // Set user_data for GA4 Enhanced Measurement matching on browser side.
+        $user_data = [];
+        $email = trim( (string) $order->get_billing_email() );
+        if ( $email ) {
+            $user_data['email'] = strtolower( $email );
+        }
+        $phone = trim( (string) $order->get_billing_phone() );
+        if ( $phone ) {
+            $user_data['phone_number'] = $phone;
+        }
+        $address = array_filter( [
+            'first_name'  => trim( (string) $order->get_billing_first_name() ),
+            'last_name'   => trim( (string) $order->get_billing_last_name() ),
+            'city'        => trim( (string) $order->get_billing_city() ),
+            'region'      => trim( (string) $order->get_billing_state() ),
+            'postal_code' => trim( (string) $order->get_billing_postcode() ),
+            'country'     => trim( (string) $order->get_billing_country() ),
+        ] );
+        if ( $address ) {
+            $user_data['address'] = $address;
+        }
+        if ( ! empty( $user_data ) ) {
+            echo '<script>if(typeof gtag!=="undefined"){gtag("set","user_data",' .
+                 wp_json_encode( $user_data ) . ');}</script>' . "\n";
+        }
+
         $params = self::order_params( $order );
         self::browser_event( 'purchase', $params );
     }
@@ -267,6 +294,7 @@ class COC_GAA {
 
     /**
      * Fires when admin marks the order as Completed ("purchase on complete" mode).
+     * Schedules async processing to avoid PHP timeout during bulk operations.
      */
     public static function hook_purchase_on_complete( $order_id, $order ) {
         if ( ! $order instanceof WC_Order ) {
@@ -281,6 +309,22 @@ class COC_GAA {
 
         $order->update_meta_data( '_coc_gaa_purchase_sent', '1' );
         $order->save();
+
+        if ( function_exists( 'as_schedule_single_action' ) ) {
+            as_schedule_single_action( time(), 'coc_gaa_async_purchase', [ $order_id ], 'coc' );
+        } else {
+            self::process_async_purchase( $order_id );
+        }
+    }
+
+    /**
+     * Processes the GA4 Measurement Protocol purchase call asynchronously.
+     */
+    public static function process_async_purchase( $order_id ) {
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            return;
+        }
 
         self::send_mp( 'purchase', self::order_params( $order ), $order );
     }
@@ -403,6 +447,9 @@ class COC_GAA {
         $user_id = '';
         if ( $order instanceof WC_Order && $order->get_customer_id() ) {
             $user_id = (string) $order->get_customer_id();
+        } elseif ( $order instanceof WC_Order && $order->get_billing_email() ) {
+            // Use hashed billing email as user_id for guest orders.
+            $user_id = hash( 'sha256', strtolower( trim( $order->get_billing_email() ) ) );
         } elseif ( is_user_logged_in() ) {
             $user_id = (string) get_current_user_id();
         }

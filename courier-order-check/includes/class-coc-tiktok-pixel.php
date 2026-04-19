@@ -28,6 +28,9 @@ class COC_TikTok_Pixel {
             return;
         }
 
+        // Persist ttclid from landing page URL into WC session.
+        add_action( 'wp', [ __CLASS__, 'persist_ttclid_to_session' ] );
+
         add_action( 'wp_head',     [ __CLASS__, 'inject_head' ], 1 );
 
         // Non-AJAX add-to-cart: send Events API + queue browser event.
@@ -42,6 +45,7 @@ class COC_TikTok_Pixel {
         // Purchase hook: fires at checkout OR when admin marks order Completed.
         if ( get_option( 'coc_purchase_on_complete', '' ) ) {
             add_action( 'woocommerce_order_status_completed', [ __CLASS__, 'hook_purchase_on_complete' ], 10, 2 );
+            add_action( 'coc_ttk_async_purchase', [ __CLASS__, 'process_async_purchase' ] );
         } else {
             add_action( 'woocommerce_checkout_order_processed', [ __CLASS__, 'hook_purchase' ], 10, 3 );
         }
@@ -65,12 +69,19 @@ class COC_TikTok_Pixel {
         $pid = esc_js( trim( get_option( 'coc_ttk_pixel_id', '' ) ) );
         // Generate PageView event_id now so browser and Events API share the same id.
         self::$page_view_eid = self::make_eid( 'pv_' );
+
+        // Advanced Matching — collect user data for ttq.identify() on checkout/thank-you.
+        $am = self::advanced_matching_data();
+
         // phpcs:disable WordPress.WP.EnqueuedResources.NonEnqueuedScript
         ?>
 <!-- TikTok Pixel Code -->
 <script>
 !function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=document.createElement("script");n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
 ttq.load('<?php echo $pid; ?>');
+<?php if ( ! empty( $am ) ) : ?>
+ttq.identify(<?php echo wp_json_encode( $am ); ?>);
+<?php endif; ?>
 }(window,document,'ttq');
 </script>
 <!-- End TikTok Pixel Code -->
@@ -237,6 +248,9 @@ ttq.load('<?php echo $pid; ?>');
         $order->save();
     }
 
+    /**
+     * Saves meta and schedules async processing to avoid PHP timeout during bulk operations.
+     */
     public static function hook_purchase_on_complete( $order_id, $order ) {
         if ( ! $order instanceof WC_Order ) {
             $order = wc_get_order( $order_id );
@@ -251,6 +265,27 @@ ttq.load('<?php echo $pid; ?>');
         $eid = self::make_eid( 'pur_' );
         $order->update_meta_data( '_coc_ttk_purchase_eid', $eid );
         $order->save();
+
+        if ( function_exists( 'as_schedule_single_action' ) ) {
+            as_schedule_single_action( time(), 'coc_ttk_async_purchase', [ $order_id ], 'coc' );
+        } else {
+            self::process_async_purchase( $order_id );
+        }
+    }
+
+    /**
+     * Processes the PlaceAnOrder Events API call asynchronously via Action Scheduler.
+     */
+    public static function process_async_purchase( $order_id ) {
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            return;
+        }
+
+        $eid = (string) $order->get_meta( '_coc_ttk_purchase_eid' );
+        if ( ! $eid ) {
+            return;
+        }
 
         self::send_events_api( 'PlaceAnOrder', self::order_props( $order ), $eid, $order );
     }
@@ -386,7 +421,7 @@ ttq.load('<?php echo $pid; ?>');
                 ],
                 'body'        => wp_json_encode( $body ),
                 'timeout'     => 10,
-                'blocking'    => is_admin(),
+                'blocking'    => false,
                 'data_format' => 'body',
             ]
         );
@@ -421,11 +456,16 @@ ttq.load('<?php echo $pid; ?>');
         if ( isset( $_COOKIE['_ttp'] ) ) {
             $ud['ttp'] = sanitize_text_field( wp_unslash( $_COOKIE['_ttp'] ) );
         }
-        // TikTok click ID: cookie first, then URL param (first-click before JS writes cookie).
+        // TikTok click ID: cookie first, then URL param, then WC session fallback.
         if ( isset( $_COOKIE['ttclid'] ) ) {
             $ud['ttclid'] = sanitize_text_field( wp_unslash( $_COOKIE['ttclid'] ) );
         } elseif ( ! empty( $_GET['ttclid'] ) ) {
             $ud['ttclid'] = sanitize_text_field( wp_unslash( $_GET['ttclid'] ) );
+        } elseif ( function_exists( 'WC' ) && WC()->session ) {
+            $stored_ttclid = WC()->session->get( 'coc_ttclid', '' );
+            if ( $stored_ttclid ) {
+                $ud['ttclid'] = sanitize_text_field( $stored_ttclid );
+            }
         }
 
         // Logged-in user.
@@ -453,9 +493,11 @@ ttq.load('<?php echo $pid; ?>');
             $ud['phone_number'] = self::sha256( $phone );
         }
 
-        // external_id for registered customers improves cross-device match quality.
-        if ( $order->get_customer_id() && empty( $ud['external_id'] ) ) {
+        // external_id: registered customer ID, or billing email hash for guests.
+        if ( $order->get_customer_id() ) {
             $ud['external_id'] = self::sha256( (string) $order->get_customer_id() );
+        } elseif ( $order->get_billing_email() ) {
+            $ud['external_id'] = self::sha256( $order->get_billing_email() );
         }
 
         // Attribution cookies persisted at checkout — used in admin context.
@@ -469,6 +511,91 @@ ttq.load('<?php echo $pid; ?>');
         }
 
         return $ud;
+    }
+
+    /* ------------------------------------------------------------------
+     * ttclid session persistence
+     * ------------------------------------------------------------------ */
+
+    /**
+     * Persist ttclid from the landing-page URL into WC session.
+     * Ensures the click ID is still available at checkout time even if the
+     * ttclid cookie was blocked or expired during the browsing session.
+     */
+    public static function persist_ttclid_to_session() {
+        if ( empty( $_GET['ttclid'] ) || ! function_exists( 'WC' ) || ! WC()->session ) {
+            return;
+        }
+        $ttclid = sanitize_text_field( wp_unslash( $_GET['ttclid'] ) );
+        WC()->session->set( 'coc_ttclid', $ttclid );
+    }
+
+    /* ------------------------------------------------------------------
+     * Advanced Matching (browser-side user data via ttq.identify)
+     * ------------------------------------------------------------------ */
+
+    /**
+     * Collects unhashed user data for TikTok's Advanced Matching.
+     * Passed to ttq.identify() so browser-side events carry email, phone, etc.
+     * TikTok's pixel JS hashes the values automatically.
+     *
+     * @return array Unhashed user data keyed by TikTok parameter name.
+     */
+    private static function advanced_matching_data() {
+        $am = [];
+
+        // Thank-you page — rich order data available.
+        if ( function_exists( 'is_wc_endpoint_url' ) && is_wc_endpoint_url( 'order-received' ) ) {
+            $order_id = isset( $GLOBALS['wp']->query_vars['order-received'] )
+                ? absint( $GLOBALS['wp']->query_vars['order-received'] )
+                : 0;
+            if ( $order_id ) {
+                $order = wc_get_order( $order_id );
+                if ( $order ) {
+                    $email = $order->get_billing_email();
+                    if ( $email ) {
+                        $am['email'] = strtolower( trim( $email ) );
+                    }
+                    $phone = $order->get_billing_phone();
+                    if ( $phone ) {
+                        $am['phone_number'] = preg_replace( '/[^0-9+]/', '', $phone );
+                    }
+                    if ( $order->get_customer_id() ) {
+                        $am['external_id'] = (string) $order->get_customer_id();
+                    } elseif ( $email ) {
+                        $am['external_id'] = strtolower( trim( $email ) );
+                    }
+                }
+            }
+            return $am;
+        }
+
+        // Checkout page — use WC customer session data.
+        if ( function_exists( 'is_checkout' ) && is_checkout() && function_exists( 'WC' ) && WC()->customer ) {
+            $customer = WC()->customer;
+            $email    = $customer->get_billing_email();
+            if ( $email ) {
+                $am['email'] = strtolower( trim( $email ) );
+            }
+            $phone = $customer->get_billing_phone();
+            if ( $phone ) {
+                $am['phone_number'] = preg_replace( '/[^0-9+]/', '', $phone );
+            }
+            if ( ! empty( $am ) ) {
+                return $am;
+            }
+        }
+
+        // Fallback: logged-in user.
+        if ( is_user_logged_in() ) {
+            $user = wp_get_current_user();
+            if ( $user->user_email ) {
+                $am['email']       = strtolower( trim( $user->user_email ) );
+                $am['external_id'] = (string) $user->ID;
+            }
+        }
+
+        return $am;
     }
 
     /* ------------------------------------------------------------------
@@ -568,12 +695,14 @@ ttq.load('<?php echo $pid; ?>');
         if ( isset( $_COOKIE['_ttp'] ) ) {
             $order->update_meta_data( '_coc_ttp', sanitize_text_field( wp_unslash( $_COOKIE['_ttp'] ) ) );
         }
-        // ttclid from cookie (set by TikTok pixel JS) or direct URL parameter.
+        // ttclid from cookie (set by TikTok pixel JS), URL parameter, or WC session.
         $ttclid = '';
         if ( isset( $_COOKIE['ttclid'] ) ) {
             $ttclid = sanitize_text_field( wp_unslash( $_COOKIE['ttclid'] ) );
         } elseif ( ! empty( $_GET['ttclid'] ) ) {
             $ttclid = sanitize_text_field( wp_unslash( $_GET['ttclid'] ) );
+        } elseif ( WC()->session && WC()->session->get( 'coc_ttclid' ) ) {
+            $ttclid = sanitize_text_field( WC()->session->get( 'coc_ttclid' ) );
         }
         if ( $ttclid ) {
             $order->update_meta_data( '_coc_ttclid', $ttclid );

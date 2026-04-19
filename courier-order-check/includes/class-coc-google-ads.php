@@ -30,6 +30,9 @@ class COC_Google_Ads {
             return;
         }
 
+        // Persist gclid/gbraid/wbraid from landing page URL into WC session.
+        add_action( 'wp', [ __CLASS__, 'persist_click_ids_to_session' ] );
+
         // Base gtag.js snippet.
         add_action( 'wp_head', [ __CLASS__, 'inject_head' ], 1 );
 
@@ -45,6 +48,7 @@ class COC_Google_Ads {
         // Purchase hook: fires at checkout OR when admin marks order Completed.
         if ( get_option( 'coc_purchase_on_complete', '' ) ) {
             add_action( 'woocommerce_order_status_completed', [ __CLASS__, 'hook_purchase_on_complete' ], 10, 2 );
+            add_action( 'coc_gads_async_purchase', [ __CLASS__, 'process_async_purchase' ] );
         } else {
             add_action( 'woocommerce_checkout_order_processed', [ __CLASS__, 'hook_purchase' ], 10, 3 );
         }
@@ -274,6 +278,7 @@ class COC_Google_Ads {
 
     /**
      * Fires when admin marks the order as Completed ("purchase on complete" mode).
+     * Schedules async processing to avoid PHP timeout during bulk operations.
      */
     public static function hook_purchase_on_complete( $order_id, $order ) {
         if ( ! $order instanceof WC_Order ) {
@@ -288,6 +293,22 @@ class COC_Google_Ads {
 
         $order->update_meta_data( '_coc_gads_purchase_sent', '1' );
         $order->save();
+
+        if ( function_exists( 'as_schedule_single_action' ) ) {
+            as_schedule_single_action( time(), 'coc_gads_async_purchase', [ $order_id ], 'coc' );
+        } else {
+            self::process_async_purchase( $order_id );
+        }
+    }
+
+    /**
+     * Processes the Google Ads conversion call asynchronously via Action Scheduler.
+     */
+    public static function process_async_purchase( $order_id ) {
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            return;
+        }
 
         self::send_conversion( $order );
     }
@@ -479,11 +500,10 @@ class COC_Google_Ads {
                rawurlencode( $numeric_id ) . '/?' .
                http_build_query( $args );
 
-        // Block in admin context so hook_purchase_on_complete can catch errors.
-        // Non-blocking on the front-end so checkout latency is unaffected.
+        // Non-blocking: fire-and-forget so it never causes PHP timeout.
         wp_remote_get( $url, [
             'timeout'    => 10,
-            'blocking'   => is_admin(),
+            'blocking'   => false,
             'sslverify'  => true,
             'user-agent' => 'WordPress/' . get_bloginfo( 'version' ) . '; ' . home_url(),
         ] );
@@ -494,47 +514,100 @@ class COC_Google_Ads {
      * ------------------------------------------------------------------ */
 
     /**
-     * Extracts gclid from the _gcl_aw cookie.
+     * Extracts gclid from the _gcl_aw cookie, or URL param, or WC session fallback.
      * Cookie format: GCL.{timestamp}.{gclid}  →  third segment.
      */
     private static function get_gclid() {
-        if ( ! isset( $_COOKIE['_gcl_aw'] ) ) {
-            return '';
+        if ( isset( $_COOKIE['_gcl_aw'] ) ) {
+            $val   = sanitize_text_field( wp_unslash( $_COOKIE['_gcl_aw'] ) );
+            $parts = explode( '.', $val, 3 );
+            if ( isset( $parts[2] ) ) {
+                return $parts[2];
+            }
         }
-        $val   = sanitize_text_field( wp_unslash( $_COOKIE['_gcl_aw'] ) );
-        $parts = explode( '.', $val, 3 );
-        return isset( $parts[2] ) ? $parts[2] : '';
+        if ( ! empty( $_GET['gclid'] ) ) {
+            return sanitize_text_field( wp_unslash( $_GET['gclid'] ) );
+        }
+        if ( function_exists( 'WC' ) && WC()->session ) {
+            $stored = WC()->session->get( 'coc_gclid', '' );
+            if ( $stored ) {
+                return sanitize_text_field( $stored );
+            }
+        }
+        return '';
     }
 
     /**
-     * Extracts gbraid from the _gcl_gb cookie (iOS app-to-web / Privacy Sandbox).
+     * Extracts gbraid from the _gcl_gb cookie, or URL param, or WC session fallback.
      * Cookie format: GCL.{timestamp}.{gbraid}  →  third segment.
      */
     private static function get_gbraid() {
-        if ( ! isset( $_COOKIE['_gcl_gb'] ) ) {
-            return '';
+        if ( isset( $_COOKIE['_gcl_gb'] ) ) {
+            $val   = sanitize_text_field( wp_unslash( $_COOKIE['_gcl_gb'] ) );
+            $parts = explode( '.', $val, 3 );
+            if ( isset( $parts[2] ) ) {
+                return $parts[2];
+            }
         }
-        $val   = sanitize_text_field( wp_unslash( $_COOKIE['_gcl_gb'] ) );
-        $parts = explode( '.', $val, 3 );
-        return isset( $parts[2] ) ? $parts[2] : '';
+        if ( ! empty( $_GET['gbraid'] ) ) {
+            return sanitize_text_field( wp_unslash( $_GET['gbraid'] ) );
+        }
+        if ( function_exists( 'WC' ) && WC()->session ) {
+            $stored = WC()->session->get( 'coc_gbraid', '' );
+            if ( $stored ) {
+                return sanitize_text_field( $stored );
+            }
+        }
+        return '';
     }
 
     /**
-     * Extracts wbraid from the _gcl_gs cookie (iOS web-to-web / Privacy Sandbox).
+     * Extracts wbraid from the _gcl_gs cookie, or URL param, or WC session fallback.
      * Cookie format: GCL.{timestamp}.{wbraid}  →  third segment.
      */
     private static function get_wbraid() {
-        if ( ! isset( $_COOKIE['_gcl_gs'] ) ) {
-            return '';
+        if ( isset( $_COOKIE['_gcl_gs'] ) ) {
+            $val   = sanitize_text_field( wp_unslash( $_COOKIE['_gcl_gs'] ) );
+            $parts = explode( '.', $val, 3 );
+            if ( isset( $parts[2] ) ) {
+                return $parts[2];
+            }
         }
-        $val   = sanitize_text_field( wp_unslash( $_COOKIE['_gcl_gs'] ) );
-        $parts = explode( '.', $val, 3 );
-        return isset( $parts[2] ) ? $parts[2] : '';
+        if ( ! empty( $_GET['wbraid'] ) ) {
+            return sanitize_text_field( wp_unslash( $_GET['wbraid'] ) );
+        }
+        if ( function_exists( 'WC' ) && WC()->session ) {
+            $stored = WC()->session->get( 'coc_wbraid', '' );
+            if ( $stored ) {
+                return sanitize_text_field( $stored );
+            }
+        }
+        return '';
     }
 
     /* ------------------------------------------------------------------
      * Attribution persistence
      * ------------------------------------------------------------------ */
+
+    /**
+     * Persist gclid/gbraid/wbraid from the landing-page URL into WC session.
+     * Ensures click signals are available at checkout time even if the
+     * _gcl_* cookies were blocked or not yet written by gtag.js.
+     */
+    public static function persist_click_ids_to_session() {
+        if ( ! function_exists( 'WC' ) || ! WC()->session ) {
+            return;
+        }
+        if ( ! empty( $_GET['gclid'] ) ) {
+            WC()->session->set( 'coc_gclid', sanitize_text_field( wp_unslash( $_GET['gclid'] ) ) );
+        }
+        if ( ! empty( $_GET['gbraid'] ) ) {
+            WC()->session->set( 'coc_gbraid', sanitize_text_field( wp_unslash( $_GET['gbraid'] ) ) );
+        }
+        if ( ! empty( $_GET['wbraid'] ) ) {
+            WC()->session->set( 'coc_wbraid', sanitize_text_field( wp_unslash( $_GET['wbraid'] ) ) );
+        }
+    }
 
     /**
      * Persist all three click signals to order meta at checkout time.

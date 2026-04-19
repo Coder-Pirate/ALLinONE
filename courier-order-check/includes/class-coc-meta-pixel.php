@@ -28,6 +28,9 @@ class COC_Meta_Pixel {
             return;
         }
 
+        // Persist fbclid from landing page URL into WC session.
+        add_action( 'wp', [ __CLASS__, 'persist_fbclid_to_session' ] );
+
         // Base snippet.
         add_action( 'wp_head', [ __CLASS__, 'inject_head' ], 1 );
 
@@ -46,6 +49,7 @@ class COC_Meta_Pixel {
         // Purchase hook: fires at checkout OR when admin marks order Completed.
         if ( get_option( 'coc_purchase_on_complete', '' ) ) {
             add_action( 'woocommerce_order_status_completed', [ __CLASS__, 'hook_purchase_on_complete' ], 10, 2 );
+            add_action( 'coc_pixel_async_purchase', [ __CLASS__, 'process_async_purchase' ] );
         } else {
             add_action( 'woocommerce_checkout_order_processed', [ __CLASS__, 'hook_purchase' ], 10, 3 );
         }
@@ -67,9 +71,15 @@ class COC_Meta_Pixel {
         // Generate PageView event_id now so browser pixel and CAPI share the same id.
         self::$page_view_eid = self::make_eid( 'pv_' );
         $eid_js = esc_js( self::$page_view_eid );
+
+        // Advanced Matching — pass user data to fbq('init') on checkout / thank-you
+        // pages so browser-side events also carry email, phone, external_id, etc.
+        $am    = self::advanced_matching_data();
+        $am_js = ! empty( $am ) ? ',' . wp_json_encode( $am ) : '';
+
         // phpcs:disable
         echo "<!-- Meta Pixel Code -->\n";
-        echo "<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','{$pid}');fbq('track','PageView',{},{eventID:'{$eid_js}'});</script>\n";
+        echo "<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','{$pid}'{$am_js});fbq('track','PageView',{},{eventID:'{$eid_js}'});</script>\n";
         echo "<noscript><img height=\"1\" width=\"1\" style=\"display:none\" src=\"https://www.facebook.com/tr?id={$apid}&amp;ev=PageView&amp;noscript=1\"/></noscript>\n";
         echo "<!-- End Meta Pixel Code -->\n";
         // phpcs:enable
@@ -298,6 +308,7 @@ class COC_Meta_Pixel {
 
     /**
      * Fires when admin marks the order as Completed ("purchase on complete" mode).
+     * Saves meta and schedules async processing to avoid PHP timeout during bulk operations.
      */
     public static function hook_purchase_on_complete( $order_id, $order ) {
         if ( ! $order instanceof WC_Order ) {
@@ -313,6 +324,29 @@ class COC_Meta_Pixel {
         $eid = self::make_eid( 'pur_' );
         $order->update_meta_data( '_coc_pixel_purchase_eid', $eid );
         $order->save();
+
+        // Schedule async processing so bulk status changes don't cause PHP timeout.
+        if ( function_exists( 'as_schedule_single_action' ) ) {
+            as_schedule_single_action( time(), 'coc_pixel_async_purchase', [ $order_id ], 'coc' );
+        } else {
+            self::process_async_purchase( $order_id );
+        }
+    }
+
+    /**
+     * Processes the Purchase CAPI call asynchronously via Action Scheduler.
+     * Runs in its own PHP request so it never contributes to admin page timeout.
+     */
+    public static function process_async_purchase( $order_id ) {
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            return;
+        }
+
+        $eid = (string) $order->get_meta( '_coc_pixel_purchase_eid' );
+        if ( ! $eid ) {
+            return;
+        }
 
         $items = [];
         $ids   = [];
@@ -491,12 +525,12 @@ class COC_Meta_Pixel {
 
         $endpoint = 'https://graph.facebook.com/v19.0/' . rawurlencode( $pixel_id ) . '/events';
 
-        // Use blocking in admin context so the request completes before PHP exits.
+        // Non-blocking: fire-and-forget so it never causes PHP timeout.
         wp_remote_post( $endpoint, [
             'headers'     => [ 'Content-Type' => 'application/json' ],
             'body'        => wp_json_encode( $body ),
             'timeout'     => 10,
-            'blocking'    => is_admin(),
+            'blocking'    => false,
             'data_format' => 'body',
         ] );
     }
@@ -541,6 +575,14 @@ class COC_Meta_Pixel {
             $ud['fbc'] = 'fb.1.' . ( (string) ( time() * 1000 ) ) . '.' .
                          sanitize_text_field( wp_unslash( $_GET['fbclid'] ) );
         }
+        // Fallback: retrieve fbclid saved to WC session from the landing page.
+        if ( empty( $ud['fbc'] ) && function_exists( 'WC' ) && WC()->session ) {
+            $stored_fbclid = WC()->session->get( 'coc_fbclid', '' );
+            if ( $stored_fbclid ) {
+                $ud['fbc'] = 'fb.1.' . ( (string) ( time() * 1000 ) ) . '.' .
+                             sanitize_text_field( $stored_fbclid );
+            }
+        }
 
         // Logged-in WP user data.
         if ( is_user_logged_in() ) {
@@ -580,9 +622,11 @@ class COC_Meta_Pixel {
             $ud['ph'] = [ self::sha256( $phone ) ];
         }
 
-        // external_id for registered customers improves cross-device match quality.
-        if ( $order->get_customer_id() && empty( $ud['external_id'] ) ) {
+        // external_id: registered customer ID, or billing email hash for guests.
+        if ( $order->get_customer_id() ) {
             $ud['external_id'] = [ self::sha256( (string) $order->get_customer_id() ) ];
+        } elseif ( $order->get_billing_email() ) {
+            $ud['external_id'] = [ self::sha256( $order->get_billing_email() ) ];
         }
 
         // Attribution cookies persisted at checkout — used in admin context.
@@ -596,6 +640,130 @@ class COC_Meta_Pixel {
         }
 
         return $ud;
+    }
+
+    /* ------------------------------------------------------------------
+     * fbclid session persistence
+     * ------------------------------------------------------------------ */
+
+    /**
+     * Persist fbclid from the landing-page URL into WC session.
+     * Ensures the click ID is still available at checkout time even if the
+     * _fbc cookie was blocked or expired during the browsing session.
+     */
+    public static function persist_fbclid_to_session() {
+        if ( empty( $_GET['fbclid'] ) || ! function_exists( 'WC' ) || ! WC()->session ) {
+            return;
+        }
+        $fbclid = sanitize_text_field( wp_unslash( $_GET['fbclid'] ) );
+        WC()->session->set( 'coc_fbclid', $fbclid );
+    }
+
+    /* ------------------------------------------------------------------
+     * Advanced Matching (browser-side user data in fbq init)
+     * ------------------------------------------------------------------ */
+
+    /**
+     * Collects unhashed user data for Meta's Advanced Matching on checkout
+     * and thank-you pages.  This data is passed to fbq('init') so the
+     * browser-side pixel events also carry email, phone, external_id, etc.,
+     * significantly improving Event Match Quality for Purchase events.
+     *
+     * @return array Unhashed user data keyed by Meta parameter name.
+     */
+    private static function advanced_matching_data() {
+        $am = [];
+
+        // Thank-you page — rich order data available.
+        if ( function_exists( 'is_wc_endpoint_url' ) && is_wc_endpoint_url( 'order-received' ) ) {
+            $order_id = isset( $GLOBALS['wp']->query_vars['order-received'] )
+                ? absint( $GLOBALS['wp']->query_vars['order-received'] )
+                : 0;
+            if ( $order_id ) {
+                $order = wc_get_order( $order_id );
+                if ( $order ) {
+                    $email = $order->get_billing_email();
+                    if ( $email ) {
+                        $am['em'] = strtolower( trim( $email ) );
+                    }
+                    $fn = $order->get_billing_first_name();
+                    if ( $fn ) {
+                        $am['fn'] = strtolower( trim( $fn ) );
+                    }
+                    $ln = $order->get_billing_last_name();
+                    if ( $ln ) {
+                        $am['ln'] = strtolower( trim( $ln ) );
+                    }
+                    $phone = $order->get_billing_phone();
+                    if ( $phone ) {
+                        $am['ph'] = preg_replace( '/[^0-9]/', '', $phone );
+                    }
+                    $ct = $order->get_billing_city();
+                    if ( $ct ) {
+                        $am['ct'] = strtolower( trim( $ct ) );
+                    }
+                    $st = $order->get_billing_state();
+                    if ( $st ) {
+                        $am['st'] = strtolower( trim( $st ) );
+                    }
+                    $zp = $order->get_billing_postcode();
+                    if ( $zp ) {
+                        $am['zp'] = trim( $zp );
+                    }
+                    $country = $order->get_billing_country();
+                    if ( $country ) {
+                        $am['country'] = strtolower( trim( $country ) );
+                    }
+                    if ( $order->get_customer_id() ) {
+                        $am['external_id'] = (string) $order->get_customer_id();
+                    } elseif ( $email ) {
+                        $am['external_id'] = strtolower( trim( $email ) );
+                    }
+                }
+            }
+            return $am;
+        }
+
+        // Checkout page — use WC customer session data.
+        if ( function_exists( 'is_checkout' ) && is_checkout() && function_exists( 'WC' ) && WC()->customer ) {
+            $customer = WC()->customer;
+            $email    = $customer->get_billing_email();
+            if ( $email ) {
+                $am['em'] = strtolower( trim( $email ) );
+            }
+            $fn = $customer->get_billing_first_name();
+            if ( $fn ) {
+                $am['fn'] = strtolower( trim( $fn ) );
+            }
+            $ln = $customer->get_billing_last_name();
+            if ( $ln ) {
+                $am['ln'] = strtolower( trim( $ln ) );
+            }
+            $phone = $customer->get_billing_phone();
+            if ( $phone ) {
+                $am['ph'] = preg_replace( '/[^0-9]/', '', $phone );
+            }
+            if ( ! empty( $am ) ) {
+                return $am;
+            }
+        }
+
+        // Fallback: logged-in user data on any page.
+        if ( is_user_logged_in() ) {
+            $user = wp_get_current_user();
+            if ( $user->user_email ) {
+                $am['em']          = strtolower( trim( $user->user_email ) );
+                $am['external_id'] = (string) $user->ID;
+            }
+            if ( $user->first_name ) {
+                $am['fn'] = strtolower( trim( $user->first_name ) );
+            }
+            if ( $user->last_name ) {
+                $am['ln'] = strtolower( trim( $user->last_name ) );
+            }
+        }
+
+        return $am;
     }
 
     /* ------------------------------------------------------------------
@@ -648,12 +816,14 @@ class COC_Meta_Pixel {
         if ( isset( $_COOKIE['_fbp'] ) ) {
             $order->update_meta_data( '_coc_fbp', sanitize_text_field( wp_unslash( $_COOKIE['_fbp'] ) ) );
         }
-        // Build _fbc from the fbclid URL parameter when the cookie isn't set yet.
+        // Build _fbc from the fbclid URL parameter or WC session when the cookie isn't set yet.
         $fbc = '';
         if ( isset( $_COOKIE['_fbc'] ) ) {
             $fbc = sanitize_text_field( wp_unslash( $_COOKIE['_fbc'] ) );
         } elseif ( ! empty( $_GET['fbclid'] ) ) {
             $fbc = 'fb.1.' . ( time() * 1000 ) . '.' . sanitize_text_field( wp_unslash( $_GET['fbclid'] ) );
+        } elseif ( WC()->session && WC()->session->get( 'coc_fbclid' ) ) {
+            $fbc = 'fb.1.' . ( time() * 1000 ) . '.' . sanitize_text_field( WC()->session->get( 'coc_fbclid' ) );
         }
         if ( $fbc ) {
             $order->update_meta_data( '_coc_fbc', $fbc );

@@ -306,6 +306,44 @@ class COC_GTM {
             $ecommerce['attribution'] = $attribution;
         }
 
+        // User data for server-side GTM tags (Enhanced Conversions, CAPI, etc.).
+        // Values are unhashed — server-side GTM handles hashing per platform spec.
+        $user_data = [];
+        $email = trim( (string) $order->get_billing_email() );
+        if ( $email ) {
+            $user_data['email'] = strtolower( $email );
+        }
+        $phone = trim( (string) $order->get_billing_phone() );
+        if ( $phone ) {
+            $user_data['phone_number'] = $phone;
+        }
+        $fn = trim( (string) $order->get_billing_first_name() );
+        if ( $fn ) {
+            $user_data['first_name'] = strtolower( $fn );
+        }
+        $ln = trim( (string) $order->get_billing_last_name() );
+        if ( $ln ) {
+            $user_data['last_name'] = strtolower( $ln );
+        }
+        $address = array_filter( [
+            'city'        => strtolower( trim( (string) $order->get_billing_city() ) ),
+            'region'      => strtolower( trim( (string) $order->get_billing_state() ) ),
+            'postal_code' => trim( (string) $order->get_billing_postcode() ),
+            'country'     => strtolower( trim( (string) $order->get_billing_country() ) ),
+        ] );
+        if ( $address ) {
+            $user_data['address'] = $address;
+        }
+        // external_id: customer ID for registered users, billing email hash for guests.
+        if ( $order->get_customer_id() ) {
+            $user_data['external_id'] = (string) $order->get_customer_id();
+        } elseif ( $email ) {
+            $user_data['external_id'] = hash( 'sha256', strtolower( $email ) );
+        }
+        if ( ! empty( $user_data ) ) {
+            $ecommerce['user_data'] = $user_data;
+        }
+
         self::push_datalayer( 'purchase', $ecommerce );
     }
 
