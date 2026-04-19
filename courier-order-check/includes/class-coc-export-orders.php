@@ -15,7 +15,7 @@ class COC_Export_Orders {
     public static function init() {
         add_action( 'admin_menu',            [ __CLASS__, 'add_submenu' ] );
         add_action( 'admin_enqueue_scripts', [ __CLASS__, 'enqueue_assets' ] );
-        add_action( 'admin_init',            [ __CLASS__, 'handle_export' ] );
+        add_action( 'admin_post_coc_export_csv', [ __CLASS__, 'handle_export' ] );
     }
 
     /* ------------------------------------------------------------------
@@ -59,13 +59,11 @@ class COC_Export_Orders {
 
         // Query args
         $args = self::build_query_args( $date_from, $date_to, $per_page, $paged );
-        $orders = wc_get_orders( $args );
-
-        // Total count (for pagination)
-        $count_args = self::build_query_args( $date_from, $date_to, -1, 1 );
-        $count_args['return'] = 'ids';
-        $total_orders = count( wc_get_orders( $count_args ) );
-        $total_pages  = $per_page > 0 ? ceil( $total_orders / $per_page ) : 1;
+        $args['paginate'] = true;
+        $results      = wc_get_orders( $args );
+        $orders       = $results->orders;
+        $total_orders = $results->total;
+        $total_pages  = $results->max_num_pages;
 
         $nonce = wp_create_nonce( 'coc_export_orders' );
         ?>
@@ -90,9 +88,9 @@ class COC_Export_Orders {
                     <?php endif; ?>
                 </form>
 
-                <form method="post" class="coc-export-download">
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="coc-export-download">
+                    <input type="hidden" name="action" value="coc_export_csv" />
                     <input type="hidden" name="coc_export_nonce" value="<?php echo esc_attr( $nonce ); ?>" />
-                    <input type="hidden" name="coc_export_action" value="csv" />
                     <input type="hidden" name="date_from" value="<?php echo esc_attr( $date_from ); ?>" />
                     <input type="hidden" name="date_to" value="<?php echo esc_attr( $date_to ); ?>" />
                     <button type="submit" class="button button-primary">
@@ -201,9 +199,6 @@ class COC_Export_Orders {
      * ------------------------------------------------------------------ */
 
     public static function handle_export() {
-        if ( empty( $_POST['coc_export_action'] ) || 'csv' !== $_POST['coc_export_action'] ) {
-            return;
-        }
         if ( ! current_user_can( 'manage_woocommerce' ) ) {
             wp_die( esc_html__( 'Unauthorized.', 'courier-order-check' ) );
         }
@@ -214,21 +209,25 @@ class COC_Export_Orders {
         $date_from = sanitize_text_field( wp_unslash( $_POST['date_from'] ?? '' ) );
         $date_to   = sanitize_text_field( wp_unslash( $_POST['date_to']   ?? '' ) );
 
-        $args   = self::build_query_args( $date_from, $date_to, -1, 1 );
-        $orders = wc_get_orders( $args );
-
         // Build filename
         $parts = [ 'orders' ];
         if ( $date_from ) $parts[] = 'from-' . $date_from;
         if ( $date_to )   $parts[] = 'to-'   . $date_to;
         $filename = implode( '_', $parts ) . '.csv';
 
+        // Clear any output buffers to prevent "headers already sent" errors
+        while ( ob_get_level() ) {
+            ob_end_clean();
+        }
+
+        // Raise limits for large exports
+        @set_time_limit( 300 );
+        wp_raise_memory_limit( 'admin' );
+
         // Headers
+        nocache_headers();
         header( 'Content-Type: text/csv; charset=UTF-8' );
         header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
-        header( 'Cache-Control: no-cache, no-store, must-revalidate' );
-        header( 'Pragma: no-cache' );
-        header( 'Expires: 0' );
 
         $out = fopen( 'php://output', 'w' );
         // UTF-8 BOM for Excel compatibility
@@ -247,41 +246,57 @@ class COC_Export_Orders {
             'Total',
         ] );
 
-        foreach ( $orders as $order ) {
-            $bill_name  = trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
-            $bill_phone = $order->get_billing_phone();
-            $bill_addr  = self::format_address(
-                $order->get_billing_address_1(),
-                $order->get_billing_address_2(),
-                $order->get_billing_city(),
-                $order->get_billing_state(),
-                $order->get_billing_postcode(),
-                $order->get_billing_country()
-            );
-            $ship_addr = self::format_address(
-                $order->get_shipping_address_1(),
-                $order->get_shipping_address_2(),
-                $order->get_shipping_city(),
-                $order->get_shipping_state(),
-                $order->get_shipping_postcode(),
-                $order->get_shipping_country()
-            );
-            if ( ! $ship_addr ) {
-                $ship_addr = $bill_addr;
+        // Process in batches of 100 to avoid memory exhaustion
+        $batch_size = 100;
+        $page       = 1;
+
+        do {
+            $args   = self::build_query_args( $date_from, $date_to, $batch_size, $page );
+            $orders = wc_get_orders( $args );
+
+            foreach ( $orders as $order ) {
+                $bill_name  = trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
+                $bill_phone = $order->get_billing_phone();
+                $bill_addr  = self::format_address(
+                    $order->get_billing_address_1(),
+                    $order->get_billing_address_2(),
+                    $order->get_billing_city(),
+                    $order->get_billing_state(),
+                    $order->get_billing_postcode(),
+                    $order->get_billing_country()
+                );
+                $ship_addr = self::format_address(
+                    $order->get_shipping_address_1(),
+                    $order->get_shipping_address_2(),
+                    $order->get_shipping_city(),
+                    $order->get_shipping_state(),
+                    $order->get_shipping_postcode(),
+                    $order->get_shipping_country()
+                );
+                if ( ! $ship_addr ) {
+                    $ship_addr = $bill_addr;
+                }
+
+                fputcsv( $out, [
+                    '#' . $order->get_order_number(),
+                    $order->get_date_created() ? $order->get_date_created()->date( 'Y-m-d H:i' ) : '',
+                    wc_get_order_status_name( $order->get_status() ),
+                    $bill_name,
+                    $bill_phone,
+                    $bill_addr,
+                    $ship_addr,
+                    $order->get_payment_method_title(),
+                    wp_strip_all_tags( $order->get_formatted_order_total() ),
+                ] );
             }
 
-            fputcsv( $out, [
-                '#' . $order->get_order_number(),
-                $order->get_date_created() ? $order->get_date_created()->date( 'Y-m-d H:i' ) : '',
-                wc_get_order_status_name( $order->get_status() ),
-                $bill_name,
-                $bill_phone,
-                $bill_addr,
-                $ship_addr,
-                $order->get_payment_method_title(),
-                strip_tags( $order->get_formatted_order_total() ),
-            ] );
-        }
+            // Flush output to browser after each batch
+            flush();
+
+            $count = count( $orders );
+            unset( $orders );
+            $page++;
+        } while ( $count === $batch_size );
 
         fclose( $out );
         exit;
