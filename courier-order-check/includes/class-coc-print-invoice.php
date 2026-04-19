@@ -296,8 +296,9 @@ body {
     margin-top: 22px;
 }
 .inv-items-table thead tr {
-    background: #000;
-    color: #fff;
+    background: #fff;
+    color: #000;
+    border-bottom: 2px solid #000;
 }
 .inv-items-table th {
     padding: 10px 14px;
@@ -306,13 +307,13 @@ body {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .07em;
-    color: #fff;
+    color: #000;
 }
 .inv-items-table th:last-child,
 .inv-items-table td:last-child { text-align: right; }
 
 .inv-items-table tbody tr {
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid #000;
 }
 .inv-items-table tbody tr:last-child { border-bottom: none; }
 .inv-items-table td {
@@ -324,7 +325,7 @@ body {
 .inv-items-table td:first-child { font-weight: 600; color: #000; }
 .inv-items-table td small {
     display: block;
-    color: #444;
+    color: #000;
     font-weight: 400;
     font-size: 11px;
     margin-top: 2px;
@@ -346,17 +347,18 @@ body {
     padding: 9px 16px;
     font-size: 13px;
     color: #000;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid #000;
 }
 .inv-totals td:last-child { text-align: right; font-weight: 600; }
 .inv-totals tr:last-child td { border-bottom: none; }
 
 .inv-total-row td {
-    background: #000;
-    color: #fff !important;
+    background: #fff;
+    color: #000 !important;
     font-size: 15px !important;
     font-weight: 800 !important;
     padding: 12px 16px !important;
+    border-top: 2px solid #000;
 }
 
 /* ── Note + Payment ──────────────────────────────────────── */
@@ -384,7 +386,7 @@ body {
 
 /* ── Footer bar ──────────────────────────────────────────── */
 .inv-footer {
-    background: #f5f5f5;
+    background: #fff;
     border-top: 1px solid #000;
     text-align: center;
     padding: 16px 40px;
@@ -392,6 +394,7 @@ body {
     color: #000;
 }
 .inv-footer strong { color: #000; }
+.inv-footer a { color: #000 !important; text-decoration: underline; }
 
 /* ── Print button ────────────────────────────────────────── */
 .inv-print-bar {
@@ -422,6 +425,12 @@ body {
         border: none !important;
         max-width: 100% !important;
     }
+    * { color: #000 !important; }
+    .inv-items-table thead tr { background: #fff !important; border-bottom: 2px solid #000 !important; }
+    .inv-items-table th { color: #000 !important; }
+    .inv-total-row td { background: #fff !important; color: #000 !important; border-top: 2px solid #000 !important; }
+    .inv-footer { background: #fff !important; }
+    a { text-decoration: underline !important; }
 }
 </style>
 </head>
@@ -498,7 +507,7 @@ body {
                 </p>
             <?php else : ?>
                 <h3><?php echo esc_html( $bill_name ); ?></h3>
-                <p><em style="color:#9ca3af;">Same as billing address</em></p>
+                <p><em style="color:#000;">Same as billing address</em></p>
             <?php endif; ?>
         </div>
     </div>
@@ -558,7 +567,7 @@ body {
                 <?php if ( $discount_total > 0 ) : ?>
                 <tr>
                     <td>Discount</td>
-                    <td style="color:#16a34a;">−<?php echo esc_html( $currency_symbol . number_format( $discount_total, 2 ) ); ?></td>
+                    <td style="color:#000;">−<?php echo esc_html( $currency_symbol . number_format( $discount_total, 2 ) ); ?></td>
                 </tr>
                 <?php endif; ?>
                 <?php if ( $shipping_total > 0 ) : ?>
@@ -603,7 +612,7 @@ body {
     <div class="inv-footer">
         Thank you for your order! &nbsp;|&nbsp;
         <strong><?php echo esc_html( $shop_name ); ?></strong> &nbsp;|&nbsp;
-        <a href="<?php echo esc_url( $shop_url ); ?>" style="color:#2563eb;"><?php echo esc_html( $shop_url ); ?></a>
+        <a href="<?php echo esc_url( $shop_url ); ?>"><?php echo esc_html( $shop_url ); ?></a>
     </div>
 
 </div>

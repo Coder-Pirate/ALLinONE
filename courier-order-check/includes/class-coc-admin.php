@@ -941,6 +941,7 @@ class COC_Admin {
             'track-cart-bd_page_coc-redx',
             'track-cart-bd_page_coc-carrybee',
             'track-cart-bd_page_coc-ip-blocklist',
+            'track-cart-bd_page_coc-export-orders',
         ];
 
         if ( in_array( $hook, $plugin_hooks, true ) ) {
