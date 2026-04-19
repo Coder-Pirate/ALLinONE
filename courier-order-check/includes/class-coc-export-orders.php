@@ -121,6 +121,7 @@ class COC_Export_Orders {
                         <th><?php esc_html_e( 'Order #', 'courier-order-check' ); ?></th>
                         <th><?php esc_html_e( 'Date', 'courier-order-check' ); ?></th>
                         <th><?php esc_html_e( 'Status', 'courier-order-check' ); ?></th>
+                        <th><?php esc_html_e( 'Product(s)', 'courier-order-check' ); ?></th>
                         <th><?php esc_html_e( 'Billing Name', 'courier-order-check' ); ?></th>
                         <th><?php esc_html_e( 'Phone', 'courier-order-check' ); ?></th>
                         <th><?php esc_html_e( 'Billing Address', 'courier-order-check' ); ?></th>
@@ -130,7 +131,7 @@ class COC_Export_Orders {
                 </thead>
                 <tbody>
                     <?php if ( empty( $orders ) ) : ?>
-                        <tr><td colspan="8" style="text-align:center;"><?php esc_html_e( 'No orders found.', 'courier-order-check' ); ?></td></tr>
+                        <tr><td colspan="9" style="text-align:center;"><?php esc_html_e( 'No orders found.', 'courier-order-check' ); ?></td></tr>
                     <?php else : ?>
                         <?php foreach ( $orders as $order ) :
                             $bill_name = trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
@@ -159,6 +160,7 @@ class COC_Export_Orders {
                                 <td>#<?php echo esc_html( $order->get_order_number() ); ?></td>
                                 <td><?php echo esc_html( $order->get_date_created() ? $order->get_date_created()->date( 'Y-m-d' ) : '—' ); ?></td>
                                 <td><?php echo esc_html( wc_get_order_status_name( $order->get_status() ) ); ?></td>
+                                <td><?php echo esc_html( self::get_product_names( $order ) ); ?></td>
                                 <td><?php echo esc_html( $bill_name ); ?></td>
                                 <td><?php echo esc_html( $bill_phone ); ?></td>
                                 <td><?php echo esc_html( $bill_addr ); ?></td>
@@ -238,6 +240,7 @@ class COC_Export_Orders {
             'Order #',
             'Date',
             'Status',
+            'Product(s)',
             'Billing Name',
             'Billing Phone',
             'Billing Address',
@@ -281,6 +284,7 @@ class COC_Export_Orders {
                     '#' . $order->get_order_number(),
                     $order->get_date_created() ? $order->get_date_created()->date( 'Y-m-d H:i' ) : '',
                     wc_get_order_status_name( $order->get_status() ),
+                    self::get_product_names( $order ),
                     $bill_name,
                     $bill_phone,
                     $bill_addr,
@@ -332,5 +336,15 @@ class COC_Export_Orders {
             $country,
         ] );
         return implode( ', ', $parts );
+    }
+
+    private static function get_product_names( $order ) {
+        $names = [];
+        foreach ( $order->get_items() as $item ) {
+            $qty  = $item->get_quantity();
+            $name = $item->get_name();
+            $names[] = $qty > 1 ? $name . ' x' . $qty : $name;
+        }
+        return implode( ', ', $names );
     }
 }

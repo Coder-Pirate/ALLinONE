@@ -62,6 +62,7 @@ function coc_init() {
     require_once COC_PLUGIN_DIR . 'includes/class-coc-print-invoice.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-cod-restriction.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-export-orders.php';
+    require_once COC_PLUGIN_DIR . 'includes/class-coc-custom-order.php';
 
     COC_Admin::init();
 
@@ -91,6 +92,7 @@ function coc_init() {
         COC_Carrybee::init();
         COC_Print_Invoice::init();
         COC_Export_Orders::init();
+        COC_Custom_Order::init();
         if ( get_option( 'coc_cod_restrict_enabled', '' ) ) {
             COC_COD_Restriction::init();
         }

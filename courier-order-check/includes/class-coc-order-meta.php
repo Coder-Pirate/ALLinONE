@@ -125,7 +125,7 @@ class COC_Order_Meta {
             <?php endif; ?>
 
             <?php if ( $api_connected ) : ?>
-            <div class="coc-check-panel" data-phone="<?php echo esc_attr( $phone ); ?>">
+            <div class="coc-check-panel" data-phone="<?php echo esc_attr( $phone ); ?>" data-order-id="<?php echo esc_attr( $order->get_id() ); ?>">
                 <div class="coc-search-row">
                     <input type="text"
                            id="coc-phone-input"
@@ -209,6 +209,18 @@ class COC_Order_Meta {
         }
 
         set_transient( $transient_key, $result, 30 * MINUTE_IN_SECONDS );
+
+        // Persist ratio data as order meta so the list column survives cache expiry.
+        $order_id = absint( $_POST['order_id'] ?? 0 );
+        if ( $order_id && isset( $result['data']['summary'] ) ) {
+            $order = wc_get_order( $order_id );
+            if ( $order ) {
+                $order->update_meta_data( '_coc_success_ratio', round( (float) ( $result['data']['summary']['success_ratio'] ?? 0 ), 1 ) );
+                $order->update_meta_data( '_coc_total_parcels', (int) ( $result['data']['summary']['total_parcel'] ?? 0 ) );
+                $order->save_meta_data();
+            }
+        }
+
         wp_send_json_success( $result );
     }
 
@@ -283,23 +295,15 @@ class COC_Order_Meta {
             return;
         }
 
-        $phone = self::extract_phone( $order );
+        // Read from permanent order meta (saved when admin checked ratio on detail page).
+        $sr    = $order->get_meta( '_coc_success_ratio' );
+        $total = $order->get_meta( '_coc_total_parcels' );
 
-        if ( ! $phone ) {
-            echo '<span class="coc-mini-no-phone">&mdash;</span>';
+        if ( $sr === '' || $sr === false ) {
             return;
         }
 
-        // Only render if data is already cached from a previous order detail visit.
-        // No AJAX fallback — the bar is populated exclusively when admin opens the order.
-        $cached = get_transient( 'coc_ratio_' . md5( $phone ) );
-        if ( ! $cached || ! isset( $cached['data']['summary'] ) ) {
-            return;
-        }
-
-        $s  = $cached['data']['summary'];
-        $sr = round( (float) ( $s['success_ratio'] ?? 0 ), 1 );
-        self::render_mini_bar_html( $sr, (int) ( $s['total_parcel'] ?? 0 ) );
+        self::render_mini_bar_html( (float) $sr, (int) $total );
     }
 
     /** Renders the final mini bar HTML (used for both cached and AJAX-rendered output). */

@@ -19,6 +19,7 @@
             var $tbody   = $( '#coc-table-body' );
             var $badges  = $( '#coc-badges-row' );
             var $bar     = $( '#coc-ratio-full-bar' );
+            var orderId  = $panel.data( 'order-id' ) || 0;
 
             function doSearch( phone ) {
                 phone = $.trim( phone );
@@ -31,7 +32,7 @@
 
                 $.post(
                     COC_ORDER.ajax_url,
-                    { action: 'coc_courier_check', nonce: COC_ORDER.nonce, phone: phone },
+                    { action: 'coc_courier_check', nonce: COC_ORDER.nonce, phone: phone, order_id: orderId },
                     function ( response ) {
                         $loading.hide();
                         $btn.prop( 'disabled', false );
