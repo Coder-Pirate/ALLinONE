@@ -595,16 +595,9 @@ class COC_Pathao {
                         </div>
                     </div>
 
-                    <!-- Price check + Submit -->
+                    <!-- Submit -->
                     <div class="coc-pathao-row coc-pathao-actions-row">
-                        <div class="coc-pathao-price-result" id="coc-pathao-price-result" style="display:none;">
-                            <?php esc_html_e( 'Delivery Fee:', 'courier-order-check' ); ?>
-                            <strong id="coc-pathao-price-value">—</strong>
-                        </div>
                         <div class="coc-pathao-btns">
-                            <button type="button" class="button" id="coc-pathao-price-btn">
-                                <?php esc_html_e( 'Check Price', 'courier-order-check' ); ?>
-                            </button>
                             <button type="button" class="button button-primary" id="coc-pathao-submit-btn">
                                 🚀 <?php esc_html_e( 'Create Pathao Order', 'courier-order-check' ); ?>
                             </button>
