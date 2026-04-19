@@ -58,6 +58,7 @@ function coc_init() {
     require_once COC_PLUGIN_DIR . 'includes/class-coc-pathao.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-steadfast.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-redx.php';
+    require_once COC_PLUGIN_DIR . 'includes/class-coc-carrybee.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-print-invoice.php';
     require_once COC_PLUGIN_DIR . 'includes/class-coc-cod-restriction.php';
 
@@ -86,6 +87,7 @@ function coc_init() {
         COC_Pathao::init();
         COC_Steadfast::init();
         COC_RedX::init();
+        COC_Carrybee::init();
         COC_Print_Invoice::init();
         if ( get_option( 'coc_cod_restrict_enabled', '' ) ) {
             COC_COD_Restriction::init();
@@ -105,7 +107,8 @@ function coc_render_courier_row( $order ) {
     $show_pathao    = class_exists( 'COC_Pathao' )    && COC_Pathao::is_connected();
     $show_steadfast = class_exists( 'COC_Steadfast' ) && COC_Steadfast::is_connected();
     $show_redx      = class_exists( 'COC_RedX' )      && COC_RedX::is_connected();
-    if ( ! $show_pathao && ! $show_steadfast && ! $show_redx ) {
+    $show_carrybee  = class_exists( 'COC_Carrybee' )  && COC_Carrybee::is_connected();
+    if ( ! $show_pathao && ! $show_steadfast && ! $show_redx && ! $show_carrybee ) {
         return;
     }
     echo '<div class="clear"></div><div class="coc-courier-row">';
@@ -122,6 +125,11 @@ function coc_render_courier_row( $order ) {
     if ( $show_redx ) {
         echo '<div class="coc-courier-col">';
         COC_RedX::render_order_panel( $order );
+        echo '</div>';
+    }
+    if ( $show_carrybee ) {
+        echo '<div class="coc-courier-col">';
+        COC_Carrybee::render_order_panel( $order );
         echo '</div>';
     }
     echo '</div>';

@@ -16,6 +16,7 @@ class COC_Admin {
         add_action( 'wp_ajax_coc_pathao_admin_get_stores',  [ __CLASS__, 'ajax_pathao_admin_get_stores' ] );
         add_action( 'wp_ajax_coc_sf_admin_check',           [ __CLASS__, 'ajax_sf_admin_check' ] );
         add_action( 'wp_ajax_coc_redx_admin_test',           [ __CLASS__, 'ajax_redx_admin_test' ] );
+        add_action( 'wp_ajax_coc_cb_admin_test',              [ __CLASS__, 'ajax_cb_admin_test' ] );
     }
 
     /* ------------------------------------------------------------------
@@ -60,6 +61,7 @@ class COC_Admin {
             [ 'coc-pathao',       __( 'Pathao Courier',     'courier-order-check' ), 'render_page_pathao'        ],
             [ 'coc-steadfast',    __( 'Steadfast Courier',  'courier-order-check' ), 'render_page_steadfast'     ],
             [ 'coc-redx',         __( 'RedX Courier',        'courier-order-check' ), 'render_page_redx'           ],
+            [ 'coc-carrybee',     __( 'Carrybee Courier',    'courier-order-check' ), 'render_page_carrybee'       ],
             [ 'coc-cod-restrict', __( 'COD Restriction',    'courier-order-check' ), 'render_page_cod_restrict'  ],
         ];
 
@@ -220,6 +222,23 @@ class COC_Admin {
         add_settings_field( 'coc_redx_webhook_secret',  __( 'Webhook Secret',   'courier-order-check' ), [ __CLASS__, 'render_redx_webhook_secret_field' ], 'coc-redx', 'coc_redx_section' );
         add_settings_field( 'coc_redx_pickup_store_id', __( 'Default Store ID', 'courier-order-check' ), [ __CLASS__, 'render_redx_store_id_field'       ], 'coc-redx', 'coc_redx_section' );
         add_settings_field( 'coc_redx_check',           __( 'Test Connection',  'courier-order-check' ), [ __CLASS__, 'render_redx_check_field'          ], 'coc-redx', 'coc_redx_section' );
+
+        // ── Carrybee Courier (coc-carrybee page) ──────────────────────
+        register_setting( 'coc_cb_group', 'coc_cb_env',            [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => 'sandbox' ] );
+        register_setting( 'coc_cb_group', 'coc_cb_client_id',      [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_cb_group', 'coc_cb_client_secret',  [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_cb_group', 'coc_cb_client_context', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_cb_group', 'coc_cb_webhook_secret', [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_cb_group', 'coc_cb_store_id',       [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+
+        add_settings_section( 'coc_cb_section', __( 'Carrybee Courier', 'courier-order-check' ), [ __CLASS__, 'render_cb_section_desc' ], 'coc-carrybee' );
+        add_settings_field( 'coc_cb_env',            __( 'Environment',      'courier-order-check' ), [ __CLASS__, 'render_cb_env_field'            ], 'coc-carrybee', 'coc_cb_section' );
+        add_settings_field( 'coc_cb_client_id',      __( 'Client ID',        'courier-order-check' ), [ __CLASS__, 'render_cb_client_id_field'      ], 'coc-carrybee', 'coc_cb_section' );
+        add_settings_field( 'coc_cb_client_secret',  __( 'Client Secret',    'courier-order-check' ), [ __CLASS__, 'render_cb_client_secret_field'  ], 'coc-carrybee', 'coc_cb_section' );
+        add_settings_field( 'coc_cb_client_context', __( 'Client Context',   'courier-order-check' ), [ __CLASS__, 'render_cb_client_context_field' ], 'coc-carrybee', 'coc_cb_section' );
+        add_settings_field( 'coc_cb_webhook_secret', __( 'Webhook Secret',   'courier-order-check' ), [ __CLASS__, 'render_cb_webhook_secret_field' ], 'coc-carrybee', 'coc_cb_section' );
+        add_settings_field( 'coc_cb_store_id',       __( 'Default Store ID', 'courier-order-check' ), [ __CLASS__, 'render_cb_store_id_field'       ], 'coc-carrybee', 'coc_cb_section' );
+        add_settings_field( 'coc_cb_check',          __( 'Test Connection',  'courier-order-check' ), [ __CLASS__, 'render_cb_check_field'          ], 'coc-carrybee', 'coc_cb_section' );
 
         // ── COD Restriction (coc-cod-restrict page) ───────────────────
         register_setting( 'coc_cod_restrict_group', 'coc_cod_restrict_enabled',   [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field',    'default' => '' ] );
@@ -727,6 +746,10 @@ class COC_Admin {
         self::render_config_page( __( 'RedX Courier', 'courier-order-check' ), 'coc_redx_group', 'coc-redx' );
     }
 
+    public static function render_page_carrybee() {
+        self::render_config_page( __( 'Carrybee Courier', 'courier-order-check' ), 'coc_cb_group', 'coc-carrybee' );
+    }
+
     public static function render_page_cod_restrict() {
         self::render_config_page( __( 'COD Restriction', 'courier-order-check' ), 'coc_cod_restrict_group', 'coc-cod-restrict' );
     }
@@ -916,6 +939,7 @@ class COC_Admin {
             'track-cart-bd_page_coc-pathao',
             'track-cart-bd_page_coc-steadfast',
             'track-cart-bd_page_coc-redx',
+            'track-cart-bd_page_coc-carrybee',
             'track-cart-bd_page_coc-ip-blocklist',
         ];
 
@@ -929,6 +953,7 @@ class COC_Admin {
                 'pathao_nonce' => wp_create_nonce( 'coc_pathao' ),
                 'sf_nonce'     => wp_create_nonce( 'coc_steadfast' ),
                 'redx_nonce'   => wp_create_nonce( 'coc_redx' ),
+                'cb_nonce'     => wp_create_nonce( 'coc_carrybee' ),
                 'l10n'         => [
                     'testing'  => __( 'Testing…', 'courier-order-check' ),
                     'test_btn' => __( 'Test Connection', 'courier-order-check' ),
@@ -1121,6 +1146,102 @@ class COC_Admin {
             $count  = count( $stores );
             wp_send_json_success( [
                 'message' => 'Connected! Found ' . $count . ' pickup store(s).',
+                'stores'  => $stores,
+            ] );
+        } else {
+            wp_send_json_error( [ 'message' => $r['message'] ?: 'Connection failed.' ] );
+        }
+    }
+
+    /* ------------------------------------------------------------------
+     * Carrybee Courier field renderers
+     * ------------------------------------------------------------------ */
+
+    public static function render_cb_section_desc() {
+        $connected   = class_exists( 'COC_Carrybee' ) && COC_Carrybee::is_connected();
+        $webhook_url = rest_url( 'coc/v1/carrybee-webhook' );
+        if ( $connected ) {
+            echo '<p style="color:#15803d;font-weight:600;">&#10003; ' . esc_html__( 'Connected to Carrybee Courier API.', 'courier-order-check' ) . '</p>';
+        } else {
+            echo '<p>' . esc_html__( 'Enter your Carrybee API credentials from the Carrybee merchant portal. Save, then click Test Connection to verify.', 'courier-order-check' ) . '</p>';
+        }
+        echo '<p>' . esc_html__( 'Webhook URL:', 'courier-order-check' ) . ' <code>' . esc_url( $webhook_url ) . '</code></p>';
+    }
+
+    public static function render_cb_env_field() {
+        $val = get_option( 'coc_cb_env', 'sandbox' );
+        echo '<select id="coc_cb_env" name="coc_cb_env">';
+        echo '<option value="sandbox"'    . selected( $val, 'sandbox',    false ) . '>' . esc_html__( 'Sandbox (Test)', 'courier-order-check' ) . '</option>';
+        echo '<option value="production"' . selected( $val, 'production', false ) . '>' . esc_html__( 'Production (Live)', 'courier-order-check' ) . '</option>';
+        echo '</select>';
+        echo '<p class="description">' . esc_html__( 'Use Sandbox for testing. Switch to Production when going live.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_cb_client_id_field() {
+        $val = esc_attr( get_option( 'coc_cb_client_id', '' ) );
+        echo '<input type="text" id="coc_cb_client_id" name="coc_cb_client_id" class="regular-text" value="' . $val . '" autocomplete="off" />';
+        echo '<p class="description">' . esc_html__( 'Client-ID header value from your Carrybee merchant portal → API Credentials.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_cb_client_secret_field() {
+        $val = esc_attr( get_option( 'coc_cb_client_secret', '' ) );
+        echo '<input type="password" id="coc_cb_client_secret" name="coc_cb_client_secret" class="regular-text" value="' . $val . '" autocomplete="new-password" />';
+        echo '<p class="description">' . esc_html__( 'Client-Secret header value from your Carrybee merchant portal.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_cb_client_context_field() {
+        $val = esc_attr( get_option( 'coc_cb_client_context', '' ) );
+        echo '<input type="password" id="coc_cb_client_context" name="coc_cb_client_context" class="regular-text" value="' . $val . '" autocomplete="new-password" />';
+        echo '<p class="description">' . esc_html__( 'Client-Context header value from your Carrybee merchant portal.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_cb_webhook_secret_field() {
+        $val = esc_attr( get_option( 'coc_cb_webhook_secret', '' ) );
+        echo '<input type="text" id="coc_cb_webhook_secret" name="coc_cb_webhook_secret" class="regular-text" value="' . $val . '" autocomplete="off" />';
+        echo '<p class="description">' . esc_html__( 'Optional: the expected X-Carrybee-Webhook-Signature value to verify incoming webhooks. Leave blank to accept all.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_cb_store_id_field() {
+        $val = esc_attr( get_option( 'coc_cb_store_id', '' ) );
+        echo '<input type="text" id="coc_cb_store_id" name="coc_cb_store_id" class="regular-text" value="' . $val . '" autocomplete="off" />';
+        echo '<p class="description">' . esc_html__( 'Default pickup store ID (string). Pre-selected on order panels. Find store IDs via Test Connection.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_cb_check_field() {
+        $nonce = wp_create_nonce( 'coc_carrybee' );
+        echo '<button type="button" class="button button-secondary" id="coc-cb-test-btn" data-nonce="' . esc_attr( $nonce ) . '">';
+        echo esc_html__( 'Test Connection', 'courier-order-check' );
+        echo '</button>';
+        echo '<span id="coc-cb-test-result" style="margin-left:12px;font-weight:600;"></span>';
+        echo '<p class="description">' . esc_html__( 'Save settings first, then click to verify your Carrybee credentials and list your stores.', 'courier-order-check' ) . '</p>';
+    }
+
+    /* ------------------------------------------------------------------
+     * Carrybee — admin settings page AJAX
+     * ------------------------------------------------------------------ */
+
+    public static function ajax_cb_admin_test() {
+        if ( ! check_ajax_referer( 'coc_carrybee', 'nonce', false ) || ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( [ 'message' => 'Permission denied.' ], 403 );
+        }
+        if ( ! class_exists( 'COC_Carrybee' ) ) {
+            wp_send_json_error( [ 'message' => 'Carrybee class not loaded.' ] );
+        }
+        $client_id      = sanitize_text_field( isset( $_POST['client_id'] )      ? $_POST['client_id']      : '' ) ?: get_option( 'coc_cb_client_id',      '' );
+        $client_secret  = sanitize_text_field( isset( $_POST['client_secret'] )  ? $_POST['client_secret']  : '' ) ?: get_option( 'coc_cb_client_secret',  '' );
+        $client_context = sanitize_text_field( isset( $_POST['client_context'] ) ? $_POST['client_context'] : '' ) ?: get_option( 'coc_cb_client_context', '' );
+        $env            = sanitize_text_field( isset( $_POST['env'] )            ? $_POST['env']            : '' ) ?: get_option( 'coc_cb_env', 'sandbox' );
+
+        $r = COC_Carrybee::test_connection_with( $client_id, $client_secret, $client_context, $env );
+        if ( $r['ok'] ) {
+            update_option( 'coc_cb_client_id',      $client_id );
+            update_option( 'coc_cb_client_secret',  $client_secret );
+            update_option( 'coc_cb_client_context', $client_context );
+            update_option( 'coc_cb_env',            $env );
+            $stores = isset( $r['data']['data']['stores'] ) && is_array( $r['data']['data']['stores'] ) ? $r['data']['data']['stores'] : [];
+            $count  = count( $stores );
+            wp_send_json_success( [
+                'message' => 'Connected! Found ' . $count . ' store(s).',
                 'stores'  => $stores,
             ] );
         } else {

@@ -287,5 +287,43 @@
             } );
         }
 
+        /* ============================================================
+           Carrybee — Settings page: Test Connection
+           ============================================================ */
+
+        var $cbTestBtn    = $( '#coc-cb-test-btn' );
+        var $cbTestResult = $( '#coc-cb-test-result' );
+
+        if ( $cbTestBtn.length ) {
+            $cbTestBtn.on( 'click', function () {
+                $cbTestResult.text( 'Testing…' ).css( 'color', '#555' );
+                $cbTestBtn.prop( 'disabled', true );
+
+                $.post(
+                    COC.ajax_url,
+                    {
+                        action         : 'coc_cb_admin_test',
+                        nonce          : COC.cb_nonce,
+                        env            : $( '#coc_cb_env' ).val(),
+                        client_id      : $( '#coc_cb_client_id' ).val(),
+                        client_secret  : $( '#coc_cb_client_secret' ).val(),
+                        client_context : $( '#coc_cb_client_context' ).val(),
+                    },
+                    function ( r ) {
+                        $cbTestBtn.prop( 'disabled', false );
+                        if ( r && r.success ) {
+                            $cbTestResult.text( '✓ ' + r.data.message ).css( 'color', '#15803d' );
+                        } else {
+                            var msg = ( r && r.data && r.data.message ) || 'Connection failed.';
+                            $cbTestResult.text( '✗ ' + msg ).css( 'color', '#b91c1c' );
+                        }
+                    }
+                ).fail( function () {
+                    $cbTestBtn.prop( 'disabled', false );
+                    $cbTestResult.text( '✗ Request failed.' ).css( 'color', '#b91c1c' );
+                } );
+            } );
+        }
+
     } );
 }( jQuery ) );
