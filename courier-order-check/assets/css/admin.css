@@ -386,6 +386,8 @@ body .coc-bar-red    { background: linear-gradient(90deg, #dc2626, #ef4444); }
 }
 .coc-pathao-title-bar { background: #2563eb; }
 .coc-sf-title-bar     { background: #18a558; }
+.coc-redx-title-bar   { background: #d63638; }
+.coc-cb-title-bar     { background: #f97316; }
 
 /* "Order Sent" badge inside title bar */
 .coc-courier-badge {
@@ -409,13 +411,13 @@ body .coc-bar-red    { background: linear-gradient(90deg, #dc2626, #ef4444); }
    Pathao Courier — Order panel
    ========================================================= */
 
-/* Body padding (previously came from .coc-wrapper) */
-.coc-pathao-wrapper .coc-pathao-form        { padding: 14px; }
-.coc-pathao-wrapper .coc-pathao-info-grid   { padding: 14px 14px 4px; }
-.coc-pathao-wrapper .coc-pathao-actions     { padding: 10px 14px; border-top: 1px solid #f3f4f6; }
-.coc-pathao-wrapper .coc-pathao-actions-row { padding: 10px 14px; border-top: 1px solid #f3f4f6; }
-.coc-pathao-wrapper .coc-warning            { margin: 12px 14px; }
-.coc-pathao-wrapper #coc-pathao-msg         { margin: 4px 14px 10px; }
+/* Body padding — shared across all courier panels */
+.coc-courier-panel .coc-pathao-form        { padding: 14px; }
+.coc-courier-panel .coc-pathao-info-grid   { padding: 14px 14px 4px; }
+.coc-courier-panel .coc-pathao-actions     { padding: 10px 14px; border-top: 1px solid #f3f4f6; }
+.coc-courier-panel .coc-pathao-actions-row { padding: 10px 14px; border-top: 1px solid #f3f4f6; }
+.coc-courier-panel .coc-warning            { margin: 12px 14px; }
+.coc-courier-panel .coc-pathao-msg         { margin: 4px 14px 10px; }
 
 /* ── Info grid (after order created) ── */
 .coc-pathao-info-grid {

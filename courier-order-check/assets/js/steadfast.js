@@ -10,8 +10,8 @@
         var nonce   = $panel.data( 'nonce' );
 
         function showMsg( $el, msg, isErr ) {
-            $el.removeClass( 'coc-sf-msg--ok coc-sf-msg--err' )
-               .addClass( isErr ? 'coc-sf-msg--err' : 'coc-sf-msg--ok' )
+            $el.removeClass( 'coc-pathao-msg--ok coc-pathao-msg--err' )
+               .addClass( isErr ? 'coc-pathao-msg--err' : 'coc-pathao-msg--ok' )
                .text( msg )
                .show();
         }

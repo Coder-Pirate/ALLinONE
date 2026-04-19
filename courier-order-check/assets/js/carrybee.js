@@ -4,7 +4,8 @@
 
     $( function () {
 
-        var orderId       = $( '#coc-cb-order-id' ).val();
+        var $panel        = $( '#coc-cb-panel' );
+        var orderId       = $panel.data( 'order-id' ) || $( '#coc-cb-order-id' ).val();
         var consignmentId = $( '#coc-cb-consignment-id' ).val();
 
         /* ----------------------------------------------------------
@@ -13,8 +14,9 @@
 
         function showMsg( text, isErr ) {
             $( '#coc-cb-msg' )
+                .removeClass( 'coc-pathao-msg--ok coc-pathao-msg--err' )
+                .addClass( isErr ? 'coc-pathao-msg--err' : 'coc-pathao-msg--ok' )
                 .text( text )
-                .css( 'color', isErr ? '#b91c1c' : '#15803d' )
                 .show();
         }
 
@@ -54,78 +56,6 @@
         }
 
         /* ----------------------------------------------------------
-           Area suggestion search
-           ---------------------------------------------------------- */
-
-        var $areaSearch    = $( '#coc-cb-area-search' );
-        var $areaSearchBtn = $( '#coc-cb-area-search-btn' );
-        var $areaSelect    = $( '#coc-cb-area-select' );
-        var $cityId        = $( '#coc-cb-city-id' );
-        var $zoneId        = $( '#coc-cb-zone-id' );
-        var $areaId        = $( '#coc-cb-area-id' );
-
-        function doAreaSearch() {
-            var q = $.trim( $areaSearch.val() );
-            if ( q.length < 3 ) {
-                alert( 'Please type at least 3 characters to search.' );
-                return;
-            }
-
-            $areaSearchBtn.prop( 'disabled', true ).text( 'Searching…' );
-
-            $.post(
-                COC_CB.ajax_url,
-                { action: 'coc_cb_search_area', nonce: COC_CB.nonce, search: q },
-                function ( r ) {
-                    $areaSearchBtn.prop( 'disabled', false ).text( 'Search' );
-                    $areaSelect.empty().append(
-                        $( '<option>' ).val( '' ).text( '— Select area —' )
-                    );
-
-                    if ( r && r.success && r.data && r.data.length ) {
-                        $.each( r.data, function ( i, item ) {
-                            var label = item.area_name + ' — ' + item.zone_name + ', ' + item.city_name;
-                            $areaSelect.append(
-                                $( '<option>' )
-                                    .val( item.area_id )
-                                    .attr( 'data-city-id', item.city_id )
-                                    .attr( 'data-zone-id', item.zone_id )
-                                    .text( label )
-                            );
-                        } );
-                        $areaSelect.show();
-                    } else {
-                        $areaSelect.append(
-                            $( '<option>' ).val( '' ).text( '— No areas found —' )
-                        );
-                        $areaSelect.show();
-                    }
-
-                    // Clear previously selected IDs.
-                    $cityId.val( '' );
-                    $zoneId.val( '' );
-                    $areaId.val( '' );
-                }
-            ).fail( function () {
-                $areaSearchBtn.prop( 'disabled', false ).text( 'Search' );
-                alert( 'Area search failed. Please try again.' );
-            } );
-        }
-
-        $areaSearchBtn.on( 'click', doAreaSearch );
-        $areaSearch.on( 'keypress', function ( e ) {
-            if ( e.which === 13 ) { e.preventDefault(); doAreaSearch(); }
-        } );
-
-        // Populate hidden city/zone/area fields when an area is selected.
-        $areaSelect.on( 'change', function () {
-            var $opt = $areaSelect.find( ':selected' );
-            $cityId.val( $opt.data( 'city-id' ) || '' );
-            $zoneId.val( $opt.data( 'zone-id' ) || '' );
-            $areaId.val( $opt.val() || '' );
-        } );
-
-        /* ----------------------------------------------------------
            Create order
            ---------------------------------------------------------- */
 
@@ -134,14 +64,11 @@
             var data = {
                 action              : 'coc_cb_create_order',
                 nonce               : COC_CB.nonce,
-                order_id            : $( '#coc-cb-form input[name="order_id"]' ).val(),
+                order_id            : orderId,
                 store_id            : $storeSelect.val(),
                 recipient_name      : $( '#coc-cb-name' ).val(),
                 recipient_phone     : $( '#coc-cb-phone' ).val(),
                 recipient_address   : $( '#coc-cb-address' ).val(),
-                city_id             : $cityId.val(),
-                zone_id             : $zoneId.val(),
-                area_id             : $areaId.val(),
                 delivery_type       : $( '#coc-cb-delivery-type' ).val(),
                 product_type        : $( '#coc-cb-product-type' ).val(),
                 item_weight         : $( '#coc-cb-weight' ).val(),
@@ -153,10 +80,6 @@
             if ( ! data.recipient_name )    { showMsg( 'Recipient name is required.', true ); return; }
             if ( ! data.recipient_phone )   { showMsg( 'Phone is required.', true ); return; }
             if ( ! data.recipient_address ) { showMsg( 'Address is required.', true ); return; }
-            if ( ! data.city_id || ! data.zone_id ) {
-                showMsg( 'Please search and select a delivery area.', true );
-                return;
-            }
 
             $btn.prop( 'disabled', true ).text( 'Creating…' );
             showMsg( 'Creating order…', false );

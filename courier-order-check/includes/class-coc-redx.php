@@ -512,30 +512,30 @@ class COC_RedX {
 
             <?php if ( $tracking_id ) : ?>
 
-                <div class="coc-sf-info-grid">
-                    <div class="coc-sf-info-row">
-                        <span class="coc-sf-label">Tracking ID</span>
-                        <span class="coc-sf-value"><code><?php echo esc_html( $tracking_id ); ?></code></span>
+                <div class="coc-pathao-info-grid">
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label">Tracking ID</span>
+                        <span class="coc-pathao-value"><code><?php echo esc_html( $tracking_id ); ?></code></span>
                     </div>
-                    <div class="coc-sf-info-row">
-                        <span class="coc-sf-label">Status</span>
-                        <span class="coc-sf-value coc-sf-status" id="coc-redx-status"><?php echo esc_html( $status ?: 'pending' ); ?></span>
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label">Status</span>
+                        <span class="coc-pathao-value coc-pathao-status" id="coc-redx-status"><?php echo esc_html( $status ?: 'pending' ); ?></span>
                     </div>
                     <?php if ( $charge !== '' && $charge !== false && $charge !== null ) : ?>
-                    <div class="coc-sf-info-row">
-                        <span class="coc-sf-label">Delivery Charge</span>
-                        <span class="coc-sf-value">৳<?php echo esc_html( $charge ); ?></span>
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label">Delivery Charge</span>
+                        <span class="coc-pathao-value">৳<?php echo esc_html( $charge ); ?></span>
                     </div>
                     <?php endif; ?>
                     <?php if ( $last_msg ) : ?>
-                    <div class="coc-sf-info-row">
-                        <span class="coc-sf-label">Last Update</span>
-                        <span class="coc-sf-value"><?php echo esc_html( $last_msg ); ?></span>
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label">Last Update</span>
+                        <span class="coc-pathao-value"><?php echo esc_html( $last_msg ); ?></span>
                     </div>
                     <?php endif; ?>
                 </div>
 
-                <div class="coc-sf-actions-row">
+                <div class="coc-pathao-actions">
                     <button type="button" class="button" id="coc-redx-refresh-btn"
                             data-tracking-id="<?php echo esc_attr( $tracking_id ); ?>">
                         ↻ Refresh Status
@@ -546,94 +546,90 @@ class COC_RedX {
                     </button>
                 </div>
 
-                <div id="coc-redx-msg" class="coc-sf-msg" style="display:none;"></div>
+                <div id="coc-redx-msg" class="coc-pathao-msg" style="display:none;"></div>
 
             <?php else : ?>
 
-                <form class="coc-redx-form" id="coc-redx-form" onsubmit="return false;">
+                <div id="coc-redx-msg" class="coc-pathao-msg" style="display:none;"></div>
 
-                    <div class="coc-sf-row coc-sf-row--2">
-                        <div>
-                            <label class="coc-sf-label">Pickup Store <span class="required">*</span></label>
-                            <select id="coc-redx-store" class="widefat">
-                                <option value="">— Loading stores… —</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="coc-sf-label">Invoice / Order # <span class="required">*</span></label>
-                            <input type="text" id="coc-redx-invoice" class="widefat"
-                                   value="<?php echo esc_attr( $default_invoice ); ?>" />
-                        </div>
-                    </div>
+                <div class="coc-pathao-form" id="coc-redx-form">
 
-                    <div class="coc-sf-row coc-sf-row--2">
-                        <div>
-                            <label class="coc-sf-label">Customer Name <span class="required">*</span></label>
-                            <input type="text" id="coc-redx-name" class="widefat"
-                                   value="<?php echo esc_attr( $default_name ); ?>" />
-                        </div>
-                        <div>
-                            <label class="coc-sf-label">Phone <span class="required">*</span></label>
-                            <input type="text" id="coc-redx-phone" class="widefat"
-                                   value="<?php echo esc_attr( $default_phone ); ?>" maxlength="14" />
-                        </div>
-                    </div>
-
-                    <div class="coc-sf-row">
-                        <label class="coc-sf-label">Delivery Address <span class="required">*</span></label>
-                        <textarea id="coc-redx-address" class="widefat" rows="2"><?php echo esc_textarea( $default_address ); ?></textarea>
-                    </div>
-
-                    <div class="coc-sf-row">
-                        <label class="coc-sf-label">Delivery Area <span class="required">*</span></label>
-                        <div style="display:flex;gap:6px;align-items:center;">
-                            <input type="text" id="coc-redx-area-search" class="widefat"
-                                   placeholder="Type district name (e.g. Dhaka)" />
-                            <button type="button" class="button" id="coc-redx-area-search-btn"
-                                    style="white-space:nowrap;">Search</button>
-                        </div>
-                        <select id="coc-redx-area-select" class="widefat" style="margin-top:4px;display:none;">
-                            <option value="">— Select area —</option>
+                    <!-- Store -->
+                    <div class="coc-pathao-row">
+                        <label for="coc-redx-store">Pickup Store <span class="required">*</span></label>
+                        <select id="coc-redx-store">
+                            <option value="">— Loading stores… —</option>
                         </select>
-                        <input type="hidden" id="coc-redx-area-id" value="" />
-                        <input type="hidden" id="coc-redx-area-name" value="" />
                     </div>
 
-                    <div class="coc-sf-row coc-sf-row--2">
+                    <!-- Name / Phone / COD -->
+                    <div class="coc-pathao-row coc-pathao-row--3">
                         <div>
-                            <label class="coc-sf-label">COD Amount (৳) <span class="required">*</span></label>
-                            <input type="number" id="coc-redx-cod" class="widefat"
-                                   value="<?php echo esc_attr( $default_cod ); ?>" min="0" step="1" />
+                            <label for="coc-redx-name">Customer Name <span class="required">*</span></label>
+                            <input type="text" id="coc-redx-name" value="<?php echo esc_attr( $default_name ); ?>" />
                         </div>
                         <div>
-                            <label class="coc-sf-label">Weight (kg)</label>
-                            <input type="number" id="coc-redx-weight" class="widefat"
-                                   value="0.5" min="0.1" step="0.1" />
+                            <label for="coc-redx-phone">Phone <span class="required">*</span></label>
+                            <input type="text" id="coc-redx-phone" value="<?php echo esc_attr( $default_phone ); ?>" maxlength="14" />
+                        </div>
+                        <div>
+                            <label for="coc-redx-cod">COD Amount (৳) <span class="required">*</span></label>
+                            <input type="number" id="coc-redx-cod" value="<?php echo esc_attr( $default_cod ); ?>" min="0" step="1" />
                         </div>
                     </div>
 
-                    <div class="coc-sf-row">
-                        <label class="coc-sf-label">Special Instruction</label>
-                        <input type="text" id="coc-redx-instruction" class="widefat"
-                               placeholder="Optional delivery note" />
+                    <!-- Address -->
+                    <div class="coc-pathao-row">
+                        <label for="coc-redx-address">Delivery Address <span class="required">*</span></label>
+                        <input type="text" id="coc-redx-address" value="<?php echo esc_attr( $default_address ); ?>" />
                     </div>
 
-                    <div class="coc-sf-actions-row">
-                        <button type="button" class="button" id="coc-redx-charge-btn">
-                            Calculate Charge
-                        </button>
-                        <span id="coc-redx-charge-result" style="margin-left:8px;font-weight:600;"></span>
+                    <!-- Area search -->
+                    <div class="coc-pathao-row coc-pathao-row--2">
+                        <div>
+                            <label for="coc-redx-area-search">Delivery Area <span class="required">*</span></label>
+                            <div style="display:flex;gap:6px;align-items:center;">
+                                <input type="text" id="coc-redx-area-search" placeholder="Type district name (e.g. Dhaka)" />
+                                <button type="button" class="button" id="coc-redx-area-search-btn" style="white-space:nowrap;">Search</button>
+                            </div>
+                            <select id="coc-redx-area-select" style="margin-top:4px;display:none;">
+                                <option value="">— Select area —</option>
+                            </select>
+                            <input type="hidden" id="coc-redx-area-id" value="" />
+                            <input type="hidden" id="coc-redx-area-name" value="" />
+                        </div>
+                        <div>
+                            <label for="coc-redx-weight">Weight (kg)</label>
+                            <input type="number" id="coc-redx-weight" value="0.5" min="0.1" step="0.1" />
+                        </div>
                     </div>
 
-                    <div class="coc-sf-actions-row">
-                        <button type="button" class="button button-primary" id="coc-redx-submit-btn">
-                            Create RedX Parcel
-                        </button>
+                    <!-- Invoice / Instruction -->
+                    <div class="coc-pathao-row coc-pathao-row--2">
+                        <div>
+                            <label for="coc-redx-invoice">Invoice / Order #</label>
+                            <input type="text" id="coc-redx-invoice" value="<?php echo esc_attr( $default_invoice ); ?>" />
+                        </div>
+                        <div>
+                            <label for="coc-redx-instruction">Instruction</label>
+                            <input type="text" id="coc-redx-instruction" placeholder="Optional delivery note" />
+                        </div>
                     </div>
 
-                    <div id="coc-redx-msg" class="coc-sf-msg" style="display:none;"></div>
+                    <!-- Actions -->
+                    <div class="coc-pathao-row coc-pathao-actions-row">
+                        <div class="coc-pathao-btns">
+                            <button type="button" class="button" id="coc-redx-charge-btn">
+                                💰 Calculate Charge
+                            </button>
+                            <span id="coc-redx-charge-result" style="font-weight:600;"></span>
+                            <button type="button" class="button button-primary" id="coc-redx-submit-btn">
+                                🚀 Create RedX Parcel
+                            </button>
+                        </div>
+                    </div>
 
-                </form>
+                </div>
 
             <?php endif; ?>
 

@@ -42,6 +42,9 @@ class COC_Carrybee {
             'coc_cb_get_status',
             'coc_cb_search_area',
             'coc_cb_get_stores',
+            'coc_cb_get_cities',
+            'coc_cb_get_zones',
+            'coc_cb_get_areas',
             'coc_cb_cancel_order',
         ] as $action ) {
             add_action( 'wp_ajax_' . $action, [ __CLASS__, 'ajax_dispatch' ] );
@@ -198,6 +201,15 @@ class COC_Carrybee {
             case 'coc_cb_get_stores':
                 self::ajax_coc_cb_get_stores();
                 break;
+            case 'coc_cb_get_cities':
+                self::ajax_coc_cb_get_cities();
+                break;
+            case 'coc_cb_get_zones':
+                self::ajax_coc_cb_get_zones();
+                break;
+            case 'coc_cb_get_areas':
+                self::ajax_coc_cb_get_areas();
+                break;
             case 'coc_cb_cancel_order':
                 self::ajax_coc_cb_cancel_order();
                 break;
@@ -240,9 +252,6 @@ class COC_Carrybee {
         if ( ! $name || ! $phone || ! $address ) {
             wp_send_json_error( [ 'message' => 'Recipient name, phone, and address are required.' ] );
         }
-        if ( ! $city_id || ! $zone_id ) {
-            wp_send_json_error( [ 'message' => 'Please search and select a delivery area (city and zone are required).' ] );
-        }
 
         $body = [
             'store_id'          => $store_id,
@@ -252,12 +261,16 @@ class COC_Carrybee {
             'recipient_phone'   => $phone,
             'recipient_name'    => $name,
             'recipient_address' => $address,
-            'city_id'           => $city_id,
-            'zone_id'           => $zone_id,
             'item_weight'       => max( 1, min( 25000, $weight ) ),
             'collectable_amount'=> max( 0, min( 100000, $cod ) ),
         ];
 
+        if ( $city_id ) {
+            $body['city_id'] = $city_id;
+        }
+        if ( $zone_id ) {
+            $body['zone_id'] = $zone_id;
+        }
         if ( $area_id ) {
             $body['area_id'] = $area_id;
         }
@@ -351,6 +364,54 @@ class COC_Carrybee {
         if ( $r['ok'] ) {
             wp_send_json_success(
                 isset( $r['data']['data']['stores'] ) ? $r['data']['data']['stores'] : []
+            );
+        } else {
+            wp_send_json_error( [ 'message' => $r['message'] ] );
+        }
+    }
+
+    private static function ajax_coc_cb_get_cities() {
+        self::verify_ajax();
+
+        $r = self::get_cities();
+        if ( $r['ok'] ) {
+            wp_send_json_success(
+                isset( $r['data']['data']['cities'] ) ? $r['data']['data']['cities'] : []
+            );
+        } else {
+            wp_send_json_error( [ 'message' => $r['message'] ] );
+        }
+    }
+
+    private static function ajax_coc_cb_get_zones() {
+        self::verify_ajax();
+
+        $city_id = absint( isset( $_POST['city_id'] ) ? $_POST['city_id'] : 0 );
+        if ( ! $city_id ) {
+            wp_send_json_error( [ 'message' => 'city_id is required.' ] );
+        }
+        $r = self::get_zones( $city_id );
+        if ( $r['ok'] ) {
+            wp_send_json_success(
+                isset( $r['data']['data']['zones'] ) ? $r['data']['data']['zones'] : []
+            );
+        } else {
+            wp_send_json_error( [ 'message' => $r['message'] ] );
+        }
+    }
+
+    private static function ajax_coc_cb_get_areas() {
+        self::verify_ajax();
+
+        $city_id = absint( isset( $_POST['city_id'] ) ? $_POST['city_id'] : 0 );
+        $zone_id = absint( isset( $_POST['zone_id'] ) ? $_POST['zone_id'] : 0 );
+        if ( ! $city_id || ! $zone_id ) {
+            wp_send_json_error( [ 'message' => 'city_id and zone_id are required.' ] );
+        }
+        $r = self::get_areas( $city_id, $zone_id );
+        if ( $r['ok'] ) {
+            wp_send_json_success(
+                isset( $r['data']['data']['areas'] ) ? $r['data']['data']['areas'] : []
             );
         } else {
             wp_send_json_error( [ 'message' => $r['message'] ] );
@@ -530,144 +591,130 @@ class COC_Carrybee {
             ] ) );
         }
         $default_cod = (int) $order->get_total();
+        $nonce       = wp_create_nonce( 'coc_carrybee' );
         ?>
-        <div class="coc-sf-panel">
-            <h3 class="coc-sf-heading">
-                <span class="coc-sf-logo" style="background:#f97316;color:#fff;font-size:11px;padding:2px 6px;border-radius:3px;margin-right:6px;">CB</span>
-                <?php esc_html_e( 'Carrybee', 'courier-order-check' ); ?>
-            </h3>
+        <div class="coc-courier-panel coc-cb-wrapper"
+             id="coc-cb-panel"
+             data-order-id="<?php echo esc_attr( $order_id ); ?>"
+             data-nonce="<?php echo esc_attr( $nonce ); ?>">
+
+            <div class="coc-courier-title coc-cb-title-bar">
+                📦 <?php esc_html_e( 'Carrybee Courier', 'courier-order-check' ); ?>
+                <?php if ( $consignment_id ) : ?>
+                    <span class="coc-courier-badge"><?php esc_html_e( 'Order Sent', 'courier-order-check' ); ?></span>
+                <?php endif; ?>
+            </div>
 
             <?php if ( $consignment_id ) : ?>
 
-                <div class="coc-sf-row">
-                    <span class="coc-sf-label"><?php esc_html_e( 'Consignment', 'courier-order-check' ); ?>:</span>
-                    <strong><?php echo esc_html( $consignment_id ); ?></strong>
-                </div>
-
-                <?php if ( $status ) : ?>
-                <div class="coc-sf-row">
-                    <span class="coc-sf-label"><?php esc_html_e( 'Status', 'courier-order-check' ); ?>:</span>
-                    <span id="coc-cb-status"><?php echo esc_html( $status ); ?></span>
-                </div>
-                <?php endif; ?>
-
-                <?php if ( $delivery_fee !== '' && $delivery_fee !== false && $delivery_fee !== null ) : ?>
-                <div class="coc-sf-row">
-                    <span class="coc-sf-label"><?php esc_html_e( 'Delivery Fee', 'courier-order-check' ); ?>:</span>
-                    ৳<?php echo esc_html( $delivery_fee ); ?>
-                    <?php if ( $cod_fee ) : ?>
-                        + COD ৳<?php echo esc_html( number_format( (float) $cod_fee, 2 ) ); ?>
+                <div class="coc-pathao-info-grid">
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label"><?php esc_html_e( 'Consignment ID', 'courier-order-check' ); ?></span>
+                        <span class="coc-pathao-value"><code><?php echo esc_html( $consignment_id ); ?></code></span>
+                    </div>
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label"><?php esc_html_e( 'Status', 'courier-order-check' ); ?></span>
+                        <span class="coc-pathao-value coc-pathao-status" id="coc-cb-status">
+                            <?php echo esc_html( $status ?: '—' ); ?>
+                        </span>
+                    </div>
+                    <?php if ( $delivery_fee !== '' && $delivery_fee !== false && $delivery_fee !== null ) : ?>
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label"><?php esc_html_e( 'Delivery Fee', 'courier-order-check' ); ?></span>
+                        <span class="coc-pathao-value">
+                            ৳<?php echo esc_html( $delivery_fee ); ?>
+                            <?php if ( $cod_fee ) : ?>
+                                + COD ৳<?php echo esc_html( number_format( (float) $cod_fee, 2 ) ); ?>
+                            <?php endif; ?>
+                        </span>
+                    </div>
                     <?php endif; ?>
                 </div>
-                <?php endif; ?>
 
                 <input type="hidden" id="coc-cb-consignment-id" value="<?php echo esc_attr( $consignment_id ); ?>" />
                 <input type="hidden" id="coc-cb-order-id" value="<?php echo esc_attr( $order_id ); ?>" />
 
-                <div class="coc-sf-actions-row">
+                <div class="coc-pathao-actions">
                     <button type="button" class="button" id="coc-cb-refresh-btn">
-                        <?php esc_html_e( 'Refresh Status', 'courier-order-check' ); ?>
+                        ↻ <?php esc_html_e( 'Refresh Status', 'courier-order-check' ); ?>
                     </button>
                     <button type="button" class="button" id="coc-cb-cancel-btn" style="color:#b91c1c;margin-left:6px;">
                         <?php esc_html_e( 'Cancel Order', 'courier-order-check' ); ?>
                     </button>
                 </div>
-
-                <div id="coc-cb-msg" class="coc-sf-msg" style="display:none;"></div>
+                <div id="coc-cb-msg" class="coc-pathao-msg" style="display:none;"></div>
 
             <?php else : ?>
 
-                <form id="coc-cb-form" autocomplete="off">
-                    <input type="hidden" name="order_id" value="<?php echo esc_attr( $order_id ); ?>" />
+                <div id="coc-cb-msg" class="coc-pathao-msg" style="display:none;"></div>
 
-                    <div class="coc-sf-row">
-                        <label class="coc-sf-label"><?php esc_html_e( 'Pickup Store', 'courier-order-check' ); ?> <span class="required">*</span></label>
-                        <select id="coc-cb-store" class="widefat" name="store_id">
+                <div class="coc-pathao-form">
+                    <!-- Store -->
+                    <div class="coc-pathao-row">
+                        <label for="coc-cb-store"><?php esc_html_e( 'Pickup Store', 'courier-order-check' ); ?> <span class="required">*</span></label>
+                        <select id="coc-cb-store" name="store_id">
                             <option value=""><?php esc_html_e( '— Loading stores…', 'courier-order-check' ); ?></option>
                         </select>
                     </div>
 
-                    <div class="coc-sf-row">
-                        <label class="coc-sf-label"><?php esc_html_e( 'Recipient Name', 'courier-order-check' ); ?> <span class="required">*</span></label>
-                        <input type="text" id="coc-cb-name" class="widefat"
-                               value="<?php echo esc_attr( $default_name ); ?>" />
-                    </div>
-
-                    <div class="coc-sf-row">
-                        <label class="coc-sf-label"><?php esc_html_e( 'Phone', 'courier-order-check' ); ?> <span class="required">*</span></label>
-                        <input type="text" id="coc-cb-phone" class="widefat"
-                               value="<?php echo esc_attr( $default_phone ); ?>" />
-                    </div>
-
-                    <div class="coc-sf-row">
-                        <label class="coc-sf-label"><?php esc_html_e( 'Address', 'courier-order-check' ); ?> <span class="required">*</span></label>
-                        <textarea id="coc-cb-address" class="widefat" rows="2"><?php echo esc_textarea( $default_address ); ?></textarea>
-                    </div>
-
-                    <div class="coc-sf-row">
-                        <label class="coc-sf-label"><?php esc_html_e( 'Delivery Area', 'courier-order-check' ); ?> <span class="required">*</span></label>
-                        <div style="display:flex;gap:6px;align-items:center;">
-                            <input type="text" id="coc-cb-area-search" class="widefat"
-                                   placeholder="<?php esc_attr_e( 'Type area, zone, or city (min 3 chars)', 'courier-order-check' ); ?>" />
-                            <button type="button" class="button" id="coc-cb-area-search-btn"
-                                    style="white-space:nowrap;">
-                                <?php esc_html_e( 'Search', 'courier-order-check' ); ?>
-                            </button>
-                        </div>
-                        <select id="coc-cb-area-select" class="widefat" style="margin-top:4px;display:none;">
-                            <option value=""><?php esc_html_e( '— Select area —', 'courier-order-check' ); ?></option>
-                        </select>
-                        <input type="hidden" id="coc-cb-city-id" value="" />
-                        <input type="hidden" id="coc-cb-zone-id" value="" />
-                        <input type="hidden" id="coc-cb-area-id" value="" />
-                    </div>
-
-                    <div class="coc-sf-row coc-sf-row--2">
+                    <!-- Recipient info -->
+                    <div class="coc-pathao-row coc-pathao-row--3">
                         <div>
-                            <label class="coc-sf-label"><?php esc_html_e( 'Delivery Type', 'courier-order-check' ); ?></label>
-                            <select id="coc-cb-delivery-type" class="widefat">
+                            <label for="coc-cb-name"><?php esc_html_e( 'Recipient Name', 'courier-order-check' ); ?> <span class="required">*</span></label>
+                            <input type="text" id="coc-cb-name" value="<?php echo esc_attr( $default_name ); ?>" />
+                        </div>
+                        <div>
+                            <label for="coc-cb-phone"><?php esc_html_e( 'Phone', 'courier-order-check' ); ?> <span class="required">*</span></label>
+                            <input type="text" id="coc-cb-phone" value="<?php echo esc_attr( $default_phone ); ?>" maxlength="11" />
+                        </div>
+                        <div>
+                            <label for="coc-cb-cod"><?php esc_html_e( 'COD Amount (৳)', 'courier-order-check' ); ?></label>
+                            <input type="number" id="coc-cb-cod" value="<?php echo esc_attr( $default_cod ); ?>" min="0" max="100000" />
+                        </div>
+                    </div>
+
+                    <!-- Address -->
+                    <div class="coc-pathao-row">
+                        <label for="coc-cb-address"><?php esc_html_e( 'Recipient Address', 'courier-order-check' ); ?> <span class="required">*</span></label>
+                        <input type="text" id="coc-cb-address" value="<?php echo esc_attr( $default_address ); ?>" />
+                    </div>
+
+                    <!-- Delivery type, Product type, Weight -->
+                    <div class="coc-pathao-row coc-pathao-row--4">
+                        <div>
+                            <label for="coc-cb-delivery-type"><?php esc_html_e( 'Delivery Type', 'courier-order-check' ); ?></label>
+                            <select id="coc-cb-delivery-type">
                                 <option value="1"><?php esc_html_e( 'Normal', 'courier-order-check' ); ?></option>
                                 <option value="2"><?php esc_html_e( 'Express', 'courier-order-check' ); ?></option>
                             </select>
                         </div>
                         <div>
-                            <label class="coc-sf-label"><?php esc_html_e( 'Product Type', 'courier-order-check' ); ?></label>
-                            <select id="coc-cb-product-type" class="widefat">
+                            <label for="coc-cb-product-type"><?php esc_html_e( 'Product Type', 'courier-order-check' ); ?></label>
+                            <select id="coc-cb-product-type">
                                 <option value="1"><?php esc_html_e( 'Parcel', 'courier-order-check' ); ?></option>
                                 <option value="2"><?php esc_html_e( 'Book', 'courier-order-check' ); ?></option>
                                 <option value="3"><?php esc_html_e( 'Document', 'courier-order-check' ); ?></option>
                             </select>
                         </div>
-                    </div>
-
-                    <div class="coc-sf-row coc-sf-row--2">
                         <div>
-                            <label class="coc-sf-label"><?php esc_html_e( 'Weight (grams)', 'courier-order-check' ); ?></label>
-                            <input type="number" id="coc-cb-weight" class="widefat"
-                                   value="500" min="1" max="25000" step="1" />
+                            <label for="coc-cb-weight"><?php esc_html_e( 'Weight (g)', 'courier-order-check' ); ?></label>
+                            <input type="number" id="coc-cb-weight" value="500" min="1" max="25000" step="1" />
                         </div>
                         <div>
-                            <label class="coc-sf-label"><?php esc_html_e( 'COD Amount (৳)', 'courier-order-check' ); ?></label>
-                            <input type="number" id="coc-cb-cod" class="widefat"
-                                   value="<?php echo esc_attr( $default_cod ); ?>" min="0" max="100000" step="1" />
+                            <label for="coc-cb-instruction"><?php esc_html_e( 'Instruction', 'courier-order-check' ); ?></label>
+                            <input type="text" id="coc-cb-instruction" placeholder="<?php esc_attr_e( 'Optional', 'courier-order-check' ); ?>" />
                         </div>
                     </div>
 
-                    <div class="coc-sf-row">
-                        <label class="coc-sf-label"><?php esc_html_e( 'Special Instruction', 'courier-order-check' ); ?></label>
-                        <input type="text" id="coc-cb-instruction" class="widefat"
-                               placeholder="<?php esc_attr_e( 'Optional', 'courier-order-check' ); ?>" />
+                    <!-- Submit -->
+                    <div class="coc-pathao-row coc-pathao-actions-row">
+                        <div class="coc-pathao-btns">
+                            <button type="button" class="button button-primary" id="coc-cb-submit-btn">
+                                🚀 <?php esc_html_e( 'Create Carrybee Order', 'courier-order-check' ); ?>
+                            </button>
+                        </div>
                     </div>
-
-                    <div class="coc-sf-actions-row">
-                        <button type="button" class="button button-primary" id="coc-cb-submit-btn">
-                            <?php esc_html_e( 'Create Carrybee Order', 'courier-order-check' ); ?>
-                        </button>
-                    </div>
-
-                    <div id="coc-cb-msg" class="coc-sf-msg" style="display:none;"></div>
-
-                </form>
+                </div>
 
             <?php endif; ?>
 

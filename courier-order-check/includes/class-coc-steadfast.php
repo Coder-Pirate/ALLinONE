@@ -426,38 +426,38 @@ class COC_Steadfast {
 
             <?php if ( $cid ) : ?>
 
-                <div class="coc-sf-info-grid">
-                    <div class="coc-sf-info-row">
-                        <span class="coc-sf-label">Consignment ID</span>
-                        <span class="coc-sf-value"><?php echo esc_html( $cid ); ?></span>
+                <div class="coc-pathao-info-grid">
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label">Consignment ID</span>
+                        <span class="coc-pathao-value"><code><?php echo esc_html( $cid ); ?></code></span>
                     </div>
-                    <div class="coc-sf-info-row">
-                        <span class="coc-sf-label">Tracking Code</span>
-                        <span class="coc-sf-value"><?php echo esc_html( $tracking_code ); ?></span>
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label">Tracking Code</span>
+                        <span class="coc-pathao-value"><code><?php echo esc_html( $tracking_code ); ?></code></span>
                     </div>
-                    <div class="coc-sf-info-row">
-                        <span class="coc-sf-label">Invoice</span>
-                        <span class="coc-sf-value"><?php echo esc_html( $sf_invoice ); ?></span>
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label">Invoice</span>
+                        <span class="coc-pathao-value"><?php echo esc_html( $sf_invoice ); ?></span>
                     </div>
                     <?php if ( $delivery_charge !== '' && $delivery_charge !== false ) : ?>
-                    <div class="coc-sf-info-row">
-                        <span class="coc-sf-label">Delivery Charge</span>
-                        <span class="coc-sf-value">৳<?php echo esc_html( $delivery_charge ); ?></span>
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label">Delivery Charge</span>
+                        <span class="coc-pathao-value">৳<?php echo esc_html( $delivery_charge ); ?></span>
                     </div>
                     <?php endif; ?>
-                    <div class="coc-sf-info-row">
-                        <span class="coc-sf-label">Status</span>
-                        <span class="coc-sf-value coc-sf-status" id="coc-sf-status"><?php echo esc_html( $sf_status ?: 'in_review' ); ?></span>
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label">Status</span>
+                        <span class="coc-pathao-value coc-pathao-status" id="coc-sf-status"><?php echo esc_html( $sf_status ?: 'in_review' ); ?></span>
                     </div>
                     <?php if ( $tracking_msg ) : ?>
-                    <div class="coc-sf-info-row">
-                        <span class="coc-sf-label">Last Update</span>
-                        <span class="coc-sf-value"><?php echo esc_html( $tracking_msg ); ?></span>
+                    <div class="coc-pathao-info-row">
+                        <span class="coc-pathao-label">Last Update</span>
+                        <span class="coc-pathao-value"><?php echo esc_html( $tracking_msg ); ?></span>
                     </div>
                     <?php endif; ?>
                 </div>
 
-                <div class="coc-sf-actions-row">
+                <div class="coc-pathao-actions">
                     <button type="button" class="button" id="coc-sf-refresh-btn"
                             data-cid="<?php echo esc_attr( $cid ); ?>">
                         ↻ Refresh Status
@@ -467,83 +467,82 @@ class COC_Steadfast {
                     </button>
                 </div>
 
-                <div id="coc-sf-return-form" class="coc-sf-return-form" style="display:none;">
-                    <div class="coc-sf-row">
-                        <label class="coc-sf-label">Reason (optional)</label>
-                        <textarea id="coc-sf-return-reason" class="widefat" rows="2"></textarea>
+                <div id="coc-sf-return-form" class="coc-pathao-form" style="display:none;margin-top:10px;">
+                    <div class="coc-pathao-row">
+                        <label for="coc-sf-return-reason">Reason (optional)</label>
+                        <textarea id="coc-sf-return-reason" rows="2"></textarea>
                     </div>
-                    <div class="coc-sf-actions-row">
-                        <button type="button" class="button button-primary" id="coc-sf-submit-return">Submit Return</button>
+                    <div class="coc-pathao-row coc-pathao-actions-row">
+                        <div class="coc-pathao-btns">
+                            <button type="button" class="button button-primary" id="coc-sf-submit-return">Submit Return</button>
+                        </div>
                     </div>
-                    <div id="coc-sf-return-msg" class="coc-sf-msg" style="display:none;"></div>
+                    <div id="coc-sf-return-msg" class="coc-pathao-msg" style="display:none;"></div>
                 </div>
 
-                <div id="coc-sf-msg" class="coc-sf-msg" style="display:none;"></div>
+                <div id="coc-sf-msg" class="coc-pathao-msg" style="display:none;"></div>
 
             <?php else : ?>
 
-                <form class="coc-sf-form" id="coc-sf-form" onsubmit="return false;">
+                <div id="coc-sf-msg" class="coc-pathao-msg" style="display:none;"></div>
 
-                    <div class="coc-sf-row coc-sf-row--2">
-                        <div>
-                            <label class="coc-sf-label">Invoice <span class="required">*</span></label>
-                            <input type="text" id="coc-sf-invoice" class="widefat"
-                                   value="<?php echo esc_attr( $default_invoice ); ?>" />
-                        </div>
-                        <div>
-                            <label class="coc-sf-label">COD Amount (৳) <span class="required">*</span></label>
-                            <input type="number" id="coc-sf-cod" class="widefat"
-                                   value="<?php echo esc_attr( $default_cod ); ?>" min="0" step="1" />
-                        </div>
-                    </div>
+                <div class="coc-pathao-form" id="coc-sf-form">
 
-                    <div class="coc-sf-row coc-sf-row--2">
+                    <!-- Name / Phone / COD -->
+                    <div class="coc-pathao-row coc-pathao-row--3">
                         <div>
-                            <label class="coc-sf-label">Recipient Name <span class="required">*</span></label>
-                            <input type="text" id="coc-sf-name" class="widefat"
-                                   value="<?php echo esc_attr( $default_name ); ?>" />
+                            <label for="coc-sf-name">Recipient Name <span class="required">*</span></label>
+                            <input type="text" id="coc-sf-name" value="<?php echo esc_attr( $default_name ); ?>" />
                         </div>
                         <div>
-                            <label class="coc-sf-label">Phone <span class="required">*</span></label>
-                            <input type="text" id="coc-sf-phone" class="widefat"
-                                   value="<?php echo esc_attr( $default_phone ); ?>" maxlength="11" />
+                            <label for="coc-sf-phone">Phone <span class="required">*</span></label>
+                            <input type="text" id="coc-sf-phone" value="<?php echo esc_attr( $default_phone ); ?>" maxlength="11" />
+                        </div>
+                        <div>
+                            <label for="coc-sf-cod">COD Amount (৳) <span class="required">*</span></label>
+                            <input type="number" id="coc-sf-cod" value="<?php echo esc_attr( $default_cod ); ?>" min="0" step="1" />
                         </div>
                     </div>
 
-                    <div class="coc-sf-row">
-                        <label class="coc-sf-label">Recipient Address <span class="required">*</span></label>
-                        <textarea id="coc-sf-address" class="widefat" rows="2"><?php echo esc_textarea( $default_address ); ?></textarea>
+                    <!-- Address -->
+                    <div class="coc-pathao-row">
+                        <label for="coc-sf-address">Recipient Address <span class="required">*</span></label>
+                        <input type="text" id="coc-sf-address" value="<?php echo esc_attr( $default_address ); ?>" />
                     </div>
 
-                    <div class="coc-sf-row coc-sf-row--2">
+                    <!-- Invoice / Delivery Type / Note / Item Desc -->
+                    <div class="coc-pathao-row coc-pathao-row--4">
                         <div>
-                            <label class="coc-sf-label">Delivery Type</label>
-                            <select id="coc-sf-delivery-type" class="widefat">
+                            <label for="coc-sf-invoice">Invoice <span class="required">*</span></label>
+                            <input type="text" id="coc-sf-invoice" value="<?php echo esc_attr( $default_invoice ); ?>" />
+                        </div>
+                        <div>
+                            <label for="coc-sf-delivery-type">Delivery Type</label>
+                            <select id="coc-sf-delivery-type">
                                 <option value="0">Home Delivery</option>
-                                <option value="1">Point Delivery / Hub Pickup</option>
+                                <option value="1">Point / Hub Pickup</option>
                             </select>
                         </div>
                         <div>
-                            <label class="coc-sf-label">Note</label>
-                            <input type="text" id="coc-sf-note" class="widefat"
-                                   placeholder="e.g. Deliver within 3 PM" />
+                            <label for="coc-sf-note">Note</label>
+                            <input type="text" id="coc-sf-note" placeholder="e.g. Deliver within 3 PM" />
+                        </div>
+                        <div>
+                            <label for="coc-sf-item-desc">Item Description</label>
+                            <input type="text" id="coc-sf-item-desc" placeholder="Optional" />
                         </div>
                     </div>
 
-                    <div class="coc-sf-row">
-                        <label class="coc-sf-label">Item Description</label>
-                        <input type="text" id="coc-sf-item-desc" class="widefat" placeholder="Optional" />
+                    <!-- Submit -->
+                    <div class="coc-pathao-row coc-pathao-actions-row">
+                        <div class="coc-pathao-btns">
+                            <button type="button" class="button button-primary" id="coc-sf-submit-btn">
+                                🚀 Create Steadfast Order
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="coc-sf-actions-row">
-                        <button type="button" class="button button-primary" id="coc-sf-submit-btn">
-                            Create Steadfast Order
-                        </button>
-                    </div>
-
-                    <div id="coc-sf-msg" class="coc-sf-msg" style="display:none;"></div>
-
-                </form>
+                </div>
 
             <?php endif; ?>
 

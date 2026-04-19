@@ -18,8 +18,8 @@
         ---------------------------------------------------------------- */
 
         function showMsg( text, isErr ) {
-            $msg.removeClass( 'coc-sf-msg--ok coc-sf-msg--err' )
-                .addClass( isErr ? 'coc-sf-msg--err' : 'coc-sf-msg--ok' )
+            $msg.removeClass( 'coc-pathao-msg--ok coc-pathao-msg--err' )
+                .addClass( isErr ? 'coc-pathao-msg--err' : 'coc-pathao-msg--ok' )
                 .text( text )
                 .show();
         }
