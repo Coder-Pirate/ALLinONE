@@ -251,5 +251,41 @@
             } );
         }
 
+        /* ============================================================
+           RedX — Settings page: Test Connection
+           ============================================================ */
+
+        var $redxTestBtn    = $( '#coc-redx-test-btn' );
+        var $redxTestResult = $( '#coc-redx-test-result' );
+
+        if ( $redxTestBtn.length ) {
+            $redxTestBtn.on( 'click', function () {
+                $redxTestResult.text( 'Testing…' ).css( 'color', '#555' );
+                $redxTestBtn.prop( 'disabled', true );
+
+                $.post(
+                    COC.ajax_url,
+                    {
+                        action : 'coc_redx_admin_test',
+                        nonce  : COC.redx_nonce,
+                        token  : $( '#coc_redx_token' ).val(),
+                        env    : $( '#coc_redx_env' ).val(),
+                    },
+                    function ( r ) {
+                        $redxTestBtn.prop( 'disabled', false );
+                        if ( r && r.success ) {
+                            $redxTestResult.text( '✓ ' + r.data.message ).css( 'color', '#15803d' );
+                        } else {
+                            var msg = ( r && r.data && r.data.message ) || 'Connection failed.';
+                            $redxTestResult.text( '✗ ' + msg ).css( 'color', '#b91c1c' );
+                        }
+                    }
+                ).fail( function () {
+                    $redxTestBtn.prop( 'disabled', false );
+                    $redxTestResult.text( '✗ Request failed.' ).css( 'color', '#b91c1c' );
+                } );
+            } );
+        }
+
     } );
 }( jQuery ) );

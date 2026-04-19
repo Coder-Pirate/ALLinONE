@@ -15,6 +15,7 @@ class COC_Admin {
         add_action( 'wp_ajax_coc_pathao_admin_connect',     [ __CLASS__, 'ajax_pathao_admin_connect' ] );
         add_action( 'wp_ajax_coc_pathao_admin_get_stores',  [ __CLASS__, 'ajax_pathao_admin_get_stores' ] );
         add_action( 'wp_ajax_coc_sf_admin_check',           [ __CLASS__, 'ajax_sf_admin_check' ] );
+        add_action( 'wp_ajax_coc_redx_admin_test',           [ __CLASS__, 'ajax_redx_admin_test' ] );
     }
 
     /* ------------------------------------------------------------------
@@ -58,6 +59,7 @@ class COC_Admin {
             [ 'coc-fb-catalog', __( 'FB Catalog',         'courier-order-check' ), 'render_page_fb_catalog' ],
             [ 'coc-pathao',       __( 'Pathao Courier',     'courier-order-check' ), 'render_page_pathao'        ],
             [ 'coc-steadfast',    __( 'Steadfast Courier',  'courier-order-check' ), 'render_page_steadfast'     ],
+            [ 'coc-redx',         __( 'RedX Courier',        'courier-order-check' ), 'render_page_redx'           ],
             [ 'coc-cod-restrict', __( 'COD Restriction',    'courier-order-check' ), 'render_page_cod_restrict'  ],
         ];
 
@@ -205,6 +207,19 @@ class COC_Admin {
         add_settings_field( 'coc_sf_secret_key',     __( 'Secret Key',     'courier-order-check' ), [ __CLASS__, 'render_sf_secret_key_field'     ], 'coc-steadfast', 'coc_sf_section' );
         add_settings_field( 'coc_sf_webhook_secret', __( 'Webhook Secret', 'courier-order-check' ), [ __CLASS__, 'render_sf_webhook_secret_field' ], 'coc-steadfast', 'coc_sf_section' );
         add_settings_field( 'coc_sf_check',          __( 'Test / Balance', 'courier-order-check' ), [ __CLASS__, 'render_sf_check_field'         ], 'coc-steadfast', 'coc_sf_section' );
+
+        // ── RedX Courier (coc-redx page) ──────────────────────────────
+        register_setting( 'coc_redx_group', 'coc_redx_env',             [ 'type' => 'string',  'sanitize_callback' => 'sanitize_text_field', 'default' => 'sandbox' ] );
+        register_setting( 'coc_redx_group', 'coc_redx_token',           [ 'type' => 'string',  'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_redx_group', 'coc_redx_webhook_secret',  [ 'type' => 'string',  'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+        register_setting( 'coc_redx_group', 'coc_redx_pickup_store_id', [ 'type' => 'integer', 'sanitize_callback' => 'absint',              'default' => 0 ] );
+
+        add_settings_section( 'coc_redx_section', __( 'RedX Courier', 'courier-order-check' ), [ __CLASS__, 'render_redx_section_desc' ], 'coc-redx' );
+        add_settings_field( 'coc_redx_env',             __( 'Environment',      'courier-order-check' ), [ __CLASS__, 'render_redx_env_field'            ], 'coc-redx', 'coc_redx_section' );
+        add_settings_field( 'coc_redx_token',           __( 'API Token',        'courier-order-check' ), [ __CLASS__, 'render_redx_token_field'          ], 'coc-redx', 'coc_redx_section' );
+        add_settings_field( 'coc_redx_webhook_secret',  __( 'Webhook Secret',   'courier-order-check' ), [ __CLASS__, 'render_redx_webhook_secret_field' ], 'coc-redx', 'coc_redx_section' );
+        add_settings_field( 'coc_redx_pickup_store_id', __( 'Default Store ID', 'courier-order-check' ), [ __CLASS__, 'render_redx_store_id_field'       ], 'coc-redx', 'coc_redx_section' );
+        add_settings_field( 'coc_redx_check',           __( 'Test Connection',  'courier-order-check' ), [ __CLASS__, 'render_redx_check_field'          ], 'coc-redx', 'coc_redx_section' );
 
         // ── COD Restriction (coc-cod-restrict page) ───────────────────
         register_setting( 'coc_cod_restrict_group', 'coc_cod_restrict_enabled',   [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field',    'default' => '' ] );
@@ -708,6 +723,10 @@ class COC_Admin {
         self::render_config_page( __( 'Steadfast Courier', 'courier-order-check' ), 'coc_steadfast_group', 'coc-steadfast' );
     }
 
+    public static function render_page_redx() {
+        self::render_config_page( __( 'RedX Courier', 'courier-order-check' ), 'coc_redx_group', 'coc-redx' );
+    }
+
     public static function render_page_cod_restrict() {
         self::render_config_page( __( 'COD Restriction', 'courier-order-check' ), 'coc_cod_restrict_group', 'coc-cod-restrict' );
     }
@@ -896,6 +915,7 @@ class COC_Admin {
             'track-cart-bd_page_coc-fb-catalog',
             'track-cart-bd_page_coc-pathao',
             'track-cart-bd_page_coc-steadfast',
+            'track-cart-bd_page_coc-redx',
             'track-cart-bd_page_coc-ip-blocklist',
         ];
 
@@ -908,6 +928,7 @@ class COC_Admin {
                 'ip_nonce'     => wp_create_nonce( 'coc_ip_block' ),
                 'pathao_nonce' => wp_create_nonce( 'coc_pathao' ),
                 'sf_nonce'     => wp_create_nonce( 'coc_steadfast' ),
+                'redx_nonce'   => wp_create_nonce( 'coc_redx' ),
                 'l10n'         => [
                     'testing'  => __( 'Testing…', 'courier-order-check' ),
                     'test_btn' => __( 'Test Connection', 'courier-order-check' ),
@@ -1018,6 +1039,90 @@ class COC_Admin {
             update_option( 'coc_sf_api_key',    $api_key );
             update_option( 'coc_sf_secret_key', $secret_key );
             wp_send_json_success( [ 'balance' => $r['data']['current_balance'] ?? 0 ] );
+        } else {
+            wp_send_json_error( [ 'message' => $r['message'] ?: 'Connection failed.' ] );
+        }
+    }
+
+    /* ------------------------------------------------------------------
+     * RedX Courier field renderers
+     * ------------------------------------------------------------------ */
+
+    public static function render_redx_section_desc() {
+        $connected   = class_exists( 'COC_RedX' ) && COC_RedX::is_connected();
+        $webhook_url = rest_url( 'coc/v1/redx-webhook' );
+        if ( $connected ) {
+            echo '<p style="color:#15803d;font-weight:600;">&#10003; ' . esc_html__( 'Connected to RedX Courier API.', 'courier-order-check' ) . '</p>';
+        } else {
+            echo '<p>' . esc_html__( 'Enter your RedX API Token from the RedX merchant portal. Save settings, then click Test Connection to verify.', 'courier-order-check' ) . '</p>';
+        }
+        echo '<p>' . esc_html__( 'Webhook URL:', 'courier-order-check' ) . ' <code>' . esc_url( $webhook_url ) . '</code></p>';
+    }
+
+    public static function render_redx_env_field() {
+        $val = get_option( 'coc_redx_env', 'sandbox' );
+        echo '<select id="coc_redx_env" name="coc_redx_env">';
+        echo '<option value="sandbox"'    . selected( $val, 'sandbox',    false ) . '>' . esc_html__( 'Sandbox (Test)', 'courier-order-check' ) . '</option>';
+        echo '<option value="production"' . selected( $val, 'production', false ) . '>' . esc_html__( 'Production (Live)', 'courier-order-check' ) . '</option>';
+        echo '</select>';
+        echo '<p class="description">' . esc_html__( 'Use Sandbox for testing. Switch to Production when ready to go live.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_redx_token_field() {
+        $val = esc_attr( get_option( 'coc_redx_token', '' ) );
+        echo '<input type="password" id="coc_redx_token" name="coc_redx_token" class="regular-text" value="' . $val . '" autocomplete="new-password" />';
+        echo '<p class="description">' . esc_html__( 'JWT Bearer token from your RedX merchant portal → API Credentials.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_redx_webhook_secret_field() {
+        $val = esc_attr( get_option( 'coc_redx_webhook_secret', '' ) );
+        echo '<input type="text" id="coc_redx_webhook_secret" name="coc_redx_webhook_secret" class="regular-text" value="' . $val . '" autocomplete="off" />';
+        echo '<p class="description">' . esc_html__( 'Optional Bearer secret to verify incoming RedX webhook requests. Leave blank to accept all.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_redx_store_id_field() {
+        $val = absint( get_option( 'coc_redx_pickup_store_id', 0 ) );
+        echo '<input type="number" id="coc_redx_pickup_store_id" name="coc_redx_pickup_store_id" class="small-text" value="' . esc_attr( $val ) . '" min="0" />';
+        echo '<p class="description">' . esc_html__( 'Default pickup store ID (pre-selected on order panels). Shown after a successful Test Connection.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_redx_check_field() {
+        $nonce = wp_create_nonce( 'coc_redx' );
+        echo '<button type="button" class="button button-secondary" id="coc-redx-test-btn" data-nonce="' . esc_attr( $nonce ) . '">';
+        echo esc_html__( 'Test Connection', 'courier-order-check' );
+        echo '</button>';
+        echo '<span id="coc-redx-test-result" style="margin-left:12px;font-weight:600;"></span>';
+        echo '<p class="description">' . esc_html__( 'Save settings first, then click to verify your RedX API token and list your pickup stores.', 'courier-order-check' ) . '</p>';
+    }
+
+    /* ------------------------------------------------------------------
+     * RedX — admin settings page AJAX
+     * ------------------------------------------------------------------ */
+
+    public static function ajax_redx_admin_test() {
+        if ( ! check_ajax_referer( 'coc_redx', 'nonce', false ) || ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( [ 'message' => 'Permission denied.' ], 403 );
+        }
+        if ( ! class_exists( 'COC_RedX' ) ) {
+            wp_send_json_error( [ 'message' => 'RedX class not loaded.' ] );
+        }
+        // Accept form values so the user doesn't need to save before testing.
+        $token = sanitize_text_field( isset( $_POST['token'] ) ? $_POST['token'] : '' )
+               ?: get_option( 'coc_redx_token', '' );
+        $env   = sanitize_text_field( isset( $_POST['env'] )   ? $_POST['env']   : '' )
+               ?: get_option( 'coc_redx_env', 'sandbox' );
+
+        $r = COC_RedX::test_connection_with( $token, $env );
+        if ( $r['ok'] ) {
+            // Persist so the order panel becomes visible immediately.
+            update_option( 'coc_redx_token', $token );
+            update_option( 'coc_redx_env',   $env );
+            $stores = is_array( $r['data'] ) ? $r['data'] : [];
+            $count  = count( $stores );
+            wp_send_json_success( [
+                'message' => 'Connected! Found ' . $count . ' pickup store(s).',
+                'stores'  => $stores,
+            ] );
         } else {
             wp_send_json_error( [ 'message' => $r['message'] ?: 'Connection failed.' ] );
         }
