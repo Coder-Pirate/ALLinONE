@@ -9,6 +9,10 @@
     var amountTimer = null;
     var lastPhone  = '';
     var restricted = false;
+    var isCartFlows = cfg.is_cartflows === '1';
+
+    // Payment method selector — covers standard WooCommerce and CartFlows templates.
+    var COD_SELECTOR = '.wc_payment_method.payment_method_cod, li.payment_method_cod, .wcf-payment-method.payment_method_cod';
 
     /* ================================================================
        Phone restriction check
@@ -43,7 +47,7 @@
         restricted = true;
 
         // Hide COD payment option.
-        $( '.wc_payment_method.payment_method_cod, li.payment_method_cod' ).hide();
+        $( COD_SELECTOR ).hide();
 
         // Show ineligibility notice + payment panel.
         $( '#coc-cod-restricted-msg, #coc-prepayment-panel' ).show();
@@ -62,7 +66,7 @@
     function clearRestriction() {
         restricted = false;
 
-        $( '.wc_payment_method.payment_method_cod, li.payment_method_cod' ).show();
+        $( COD_SELECTOR ).show();
         $( '#coc-cod-restricted-msg, #coc-prepayment-panel' ).hide();
 
         // Clear advance amount from session so cart fee is removed.
@@ -87,24 +91,31 @@
             nonce:  cfg.amount_nonce,
             amount: amount
         } ).done( function () {
+            // Trigger checkout totals refresh for standard WooCommerce.
             $( document.body ).trigger( 'update_checkout' );
+            // CartFlows also listens for woocommerce_update_order_review AJAX
+            // via update_checkout, but fire its own event too if present.
+            if ( isCartFlows ) {
+                $( document.body ).trigger( 'wcf_update_checkout' );
+            }
         } );
     }
 
     /* ================================================================
-       Watch billing_phone — debounced
+       Watch billing_phone — debounced.
+       Uses event delegation from document so it works with both
+       WooCommerce and CartFlows dynamically-rendered fields.
        ================================================================ */
 
-    $( document.body ).on( 'input change', '#billing_phone', function () {
+    $( document.body ).on( 'input change', '#billing_phone, #wcf-billing_phone, [name="billing_phone"]', function () {
         clearTimeout( checkTimer );
         var phone = $( this ).val();
         checkTimer = setTimeout( function () { checkPhone( phone ); }, 700 );
     } );
 
-    // Re-apply after WooCommerce refreshes checkout fragments
-    // (e.g. coupon applied, shipping method changed).
-    $( document.body ).on( 'updated_checkout', function () {
-        var phone = $( '#billing_phone' ).val();
+    // Re-apply after WooCommerce or CartFlows refreshes checkout fragments.
+    $( document.body ).on( 'updated_checkout wc_fragments_refreshed', function () {
+        var phone = $( '#billing_phone, #wcf-billing_phone, [name="billing_phone"]' ).first().val();
         if ( phone ) {
             lastPhone = ''; // force re-check after DOM refresh
             checkPhone( phone );
@@ -114,8 +125,8 @@
     } );
 
     // Initial check if the phone field is pre-filled (logged-in user).
-    var initialPhone = $( '#billing_phone' ).val();
-    if ( initialPhone ) { checkPhone( initialPhone ); }
+    var $phoneField = $( '#billing_phone, #wcf-billing_phone, [name="billing_phone"]' ).first();
+    if ( $phoneField.length && $phoneField.val() ) { checkPhone( $phoneField.val() ); }
 
     /* ================================================================
        Payment amount → save to session + refresh checkout totals

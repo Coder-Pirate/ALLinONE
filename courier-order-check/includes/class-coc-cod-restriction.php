@@ -25,9 +25,13 @@ class COC_COD_Restriction {
         add_action( 'woocommerce_cart_calculate_fees', [ __CLASS__, 'apply_cart_fee' ] );
 
         // Inject prepayment panel HTML just before the payment block.
+        // Standard WooCommerce checkout hook.
         add_action( 'woocommerce_review_order_before_payment', [ __CLASS__, 'render_prepayment_panel' ] );
+        // CartFlows checkout hook (fires before payment section in CF templates).
+        add_action( 'cartflows_checkout_after_order_review', [ __CLASS__, 'render_prepayment_panel' ] );
 
         // Server-side validation on checkout submit.
+        // woocommerce_checkout_process fires in both WooCommerce and CartFlows.
         add_action( 'woocommerce_checkout_process', [ __CLASS__, 'validate' ] );
 
         // Persist screenshot + amount to order meta.
@@ -50,6 +54,36 @@ class COC_COD_Restriction {
 
     private static function get_threshold() {
         return (int) get_option( 'coc_cod_restrict_threshold', 60 );
+    }
+
+    /**
+     * Returns true when the current page is a CartFlows checkout step.
+     * Supports both CartFlows Free and Pro, v1.x and v2.x.
+     */
+    private static function is_cartflows_checkout() {
+        // CartFlows 2.x sets a global flag on checkout steps.
+        if ( defined( 'CARTFLOWS_CHECKOUT_PAGE' ) && CARTFLOWS_CHECKOUT_PAGE ) {
+            return true;
+        }
+        // CartFlows utility helper (CF 1.x / 2.x).
+        if ( function_exists( 'wcf' ) && is_object( wcf() )
+            && isset( wcf()->utils ) && method_exists( wcf()->utils, 'is_checkout_page' )
+        ) {
+            return (bool) wcf()->utils->is_checkout_page();
+        }
+        // Fallback: check the CartFlows post type and step-type meta directly.
+        if ( is_singular( 'cartflows_step' ) ) {
+            return get_post_meta( get_the_ID(), 'wcf-step-type', true ) === 'checkout';
+        }
+        return false;
+    }
+
+    /**
+     * Returns true when the current page is any checkout page
+     * (standard WooCommerce or CartFlows).
+     */
+    private static function on_checkout_page() {
+        return is_checkout() || self::is_cartflows_checkout();
     }
 
     /**
@@ -204,8 +238,17 @@ class COC_COD_Restriction {
             wp_send_json_error( [ 'message' => $attachment_id->get_error_message() ] );
         }
 
-        // Store attachment ID in the WC session with a single-use token.
+        // Generate a single-use token that acts as a server-side reference.
+        // We use a transient as the PRIMARY store so the attachment ID is
+        // reliably available during order creation regardless of which checkout
+        // flow (WooCommerce, CartFlows, etc.) is used.  WC session is kept as
+        // a secondary/fallback store.
         $token = wp_generate_password( 32, false );
+
+        // Primary: transient keyed by token — survives any session mismatch.
+        set_transient( 'coc_ss_' . $token, $attachment_id, 2 * HOUR_IN_SECONDS );
+
+        // Secondary: WC session (for hooks that still work with it).
         if ( WC()->session ) {
             WC()->session->set( 'coc_cod_screenshot', [
                 'id'    => $attachment_id,
@@ -321,13 +364,20 @@ class COC_COD_Restriction {
         }
 
         // Collect all proof fields.
-        $token        = isset( $_POST['coc_cod_screenshot_token'] )
+        $token = isset( $_POST['coc_cod_screenshot_token'] )
             ? sanitize_text_field( wp_unslash( $_POST['coc_cod_screenshot_token'] ) )
             : '';
-        $session_data = WC()->session ? WC()->session->get( 'coc_cod_screenshot' ) : null;
-        $has_screenshot = ! empty( $token )
-            && ! empty( $session_data['token'] )
-            && hash_equals( (string) $session_data['token'], $token );
+
+        // Primary: look up via transient (works for all checkout flows).
+        $has_screenshot = ! empty( $token ) && (bool) get_transient( 'coc_ss_' . $token );
+
+        // Fallback: WC session (for environments where transients may be
+        // unavailable, e.g., object-cache eviction during a long session).
+        if ( ! $has_screenshot && ! empty( $token ) ) {
+            $session_data   = WC()->session ? WC()->session->get( 'coc_cod_screenshot' ) : null;
+            $has_screenshot = ! empty( $session_data['token'] )
+                && hash_equals( (string) $session_data['token'], $token );
+        }
 
         $sender_account = isset( $_POST['coc_sender_account'] )
             ? sanitize_text_field( wp_unslash( $_POST['coc_sender_account'] ) )
@@ -371,18 +421,44 @@ class COC_COD_Restriction {
      * ------------------------------------------------------------------ */
 
     public static function save_proof( $order ) {
-        $session_data = WC()->session ? WC()->session->get( 'coc_cod_screenshot' ) : null;
+        // Resolve the uploaded attachment ID.  We try the transient first
+        // (most reliable), then fall back to the WC session.
+        $token = isset( $_POST['coc_cod_screenshot_token'] )
+            ? sanitize_text_field( wp_unslash( $_POST['coc_cod_screenshot_token'] ) )
+            : '';
 
-        if ( ! empty( $session_data['id'] ) ) {
-            $attachment_id = (int) $session_data['id'];
-            $url           = wp_get_attachment_url( $attachment_id );
+        $attachment_id = 0;
+
+        if ( ! empty( $token ) ) {
+            // Primary: transient (keyed by the token returned at upload time).
+            $stored = get_transient( 'coc_ss_' . $token );
+            if ( $stored ) {
+                $attachment_id = (int) $stored;
+                delete_transient( 'coc_ss_' . $token );
+            }
+        }
+
+        // Fallback: WC session.
+        if ( ! $attachment_id ) {
+            $session_data = WC()->session ? WC()->session->get( 'coc_cod_screenshot' ) : null;
+            if ( ! empty( $session_data['id'] ) ) {
+                $attachment_id = (int) $session_data['id'];
+            }
+        }
+
+        // Always clean up WC session regardless of which path was used.
+        if ( WC()->session ) {
+            WC()->session->set( 'coc_cod_screenshot', null );
+        }
+
+        if ( $attachment_id ) {
+            $url = wp_get_attachment_url( $attachment_id );
 
             $order->update_meta_data( '_coc_payment_screenshot_id',  $attachment_id );
             $order->update_meta_data( '_coc_payment_screenshot_url', $url );
 
+            // Attach the media file to this order (works for both HPOS and legacy).
             wp_update_post( [ 'ID' => $attachment_id, 'post_parent' => $order->get_id() ] );
-
-            WC()->session->set( 'coc_cod_screenshot', null );
         }
 
         $amount = isset( $_POST['coc_payment_amount'] )
@@ -410,34 +486,44 @@ class COC_COD_Restriction {
      * ------------------------------------------------------------------ */
 
     public static function show_proof_in_admin( $order ) {
+        // Resolve screenshot URL: prefer stored URL, regenerate from ID if needed.
         $url = $order->get_meta( '_coc_payment_screenshot_url' );
         if ( ! $url ) {
             $id  = $order->get_meta( '_coc_payment_screenshot_id' );
             $url = $id ? wp_get_attachment_url( (int) $id ) : '';
         }
-        if ( ! $url ) {
-            return;
-        }
 
         $amount = $order->get_meta( '_coc_payment_amount' );
         $sender = $order->get_meta( '_coc_sender_account' );
 
+        // Nothing at all — do not render the box.
+        if ( ! $url && ! $amount && ! $sender ) {
+            return;
+        }
+
         echo '<div style="margin-top:16px;padding:14px 16px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;">';
         echo '<p style="margin:0 0 10px;font-weight:700;font-size:13px;color:#15803d;">' . esc_html__( 'Advance Payment Proof', 'courier-order-check' ) . '</p>';
-        echo '<p style="margin:0 0 6px;font-size:13px;">';
-        if ( $amount ) {
-            echo '<strong>' . esc_html__( 'Amount:', 'courier-order-check' ) . '</strong> ';
-            echo '<span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:4px;">৳' . esc_html( number_format( (float) $amount, 0 ) ) . '</span>&nbsp;&nbsp;';
+
+        if ( $amount || $sender ) {
+            echo '<p style="margin:0 0 6px;font-size:13px;">';
+            if ( $amount ) {
+                echo '<strong>' . esc_html__( 'Amount:', 'courier-order-check' ) . '</strong> ';
+                echo '<span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:4px;">৳' . esc_html( number_format( (float) $amount, 0 ) ) . '</span>&nbsp;&nbsp;';
+            }
+            if ( $sender ) {
+                echo '<strong>' . esc_html__( 'From:', 'courier-order-check' ) . '</strong> ';
+                echo '<span style="background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:4px;">' . esc_html( $sender ) . '</span>';
+            }
+            echo '</p>';
         }
-        if ( $sender ) {
-            echo '<strong>' . esc_html__( 'From:', 'courier-order-check' ) . '</strong> ';
-            echo '<span style="background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:4px;">' . esc_html( $sender ) . '</span>';
+
+        if ( $url ) {
+            echo '<a href="' . esc_url( $url ) . '" target="_blank" style="display:inline-block;margin-top:6px;">';
+            echo '<img src="' . esc_url( $url ) . '" style="max-width:300px;border-radius:6px;border:1px solid #d1fae5;display:block;" />';
+            echo '</a>';
+            echo '<p style="margin:8px 0 0;font-size:11px;color:#6b7280;"><a href="' . esc_url( $url ) . '" target="_blank">' . esc_html__( 'Open full size', 'courier-order-check' ) . ' ↗</a></p>';
         }
-        echo '</p>';
-        echo '<a href="' . esc_url( $url ) . '" target="_blank" style="display:inline-block;margin-top:6px;">';
-        echo '<img src="' . esc_url( $url ) . '" style="max-width:300px;border-radius:6px;border:1px solid #d1fae5;display:block;" />';
-        echo '</a>';
-        echo '<p style="margin:8px 0 0;font-size:11px;color:#6b7280;"><a href="' . esc_url( $url ) . '" target="_blank">' . esc_html__( 'Open full size', 'courier-order-check' ) . ' ↗</a></p>';
+
         echo '</div>';
     }
 
@@ -446,7 +532,7 @@ class COC_COD_Restriction {
      * ------------------------------------------------------------------ */
 
     public static function enqueue() {
-        if ( ! self::is_enabled() || ! is_checkout() ) {
+        if ( ! self::is_enabled() || ! self::on_checkout_page() ) {
             return;
         }
 
@@ -464,10 +550,15 @@ class COC_COD_Restriction {
             'check_nonce'  => wp_create_nonce( 'coc_cod_check' ),
             'upload_nonce' => wp_create_nonce( 'coc_cod_upload' ),
             'amount_nonce' => wp_create_nonce( 'coc_cod_check' ),
+            'is_cartflows' => self::is_cartflows_checkout() ? '1' : '0',
         ] );
 
-        // Inject checkout UI styles inline so no extra HTTP request is needed.
-        wp_add_inline_style( 'woocommerce-inline', self::inline_css() );
+        // Inject checkout UI styles using a dedicated handle so the CSS is output
+        // on both WooCommerce and CartFlows checkout pages, regardless of which
+        // WooCommerce stylesheets are (or are not) enqueued by CartFlows.
+        wp_register_style( 'coc-cod-restriction-css', false, [], COC_VERSION );
+        wp_enqueue_style( 'coc-cod-restriction-css' );
+        wp_add_inline_style( 'coc-cod-restriction-css', self::inline_css() );
     }
 
     /* ---- Inline CSS ------------------------------------------------- */
