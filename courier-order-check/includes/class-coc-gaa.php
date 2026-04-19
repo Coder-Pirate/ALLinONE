@@ -2,11 +2,18 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Google Analytics 4 — gtag.js (browser) + Measurement Protocol (server-side).
+ * Google Analytics 4 — gtag.js (browser) + Measurement Protocol (server-side, purchase only).
  *
- * Events:
- *   page_view, view_item, view_item_list, add_to_cart,
- *   begin_checkout, add_payment_info, purchase
+ * GA4 Measurement Protocol does NOT support event_id deduplication for
+ * non-purchase events. Sending the same event from both browser (gtag) and
+ * server (MP) causes double-counting in GA4 reports.
+ *
+ * Strategy (matches Google's own recommendation):
+ *   Browser (gtag.js)  — ALL events: page_view, view_item, view_item_list,
+ *                         add_to_cart, begin_checkout, add_payment_info.
+ *   Server (MP only)   — purchase ONLY (reliable even if customer closes tab;
+ *                         GA4 deduplicates via transaction_id when the browser
+ *                         also fires on the thank-you page).
  *
  * Each key event fires from both the browser (gtag) and your server
  * via the GA4 Measurement Protocol using the same client_id for
@@ -14,10 +21,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class COC_GAA {
 
-    /** Temporary event_id for last AJAX add-to-cart — passed via WC fragment. */
-    private static $last_atc_eid = '';
-
-    /** PageView event_id — generated at head injection, passed to MP in fire_page_events. */
+    /** PageView event_id — generated at head injection; stored for future reference. */
     private static $page_view_eid = '';
 
     /* ------------------------------------------------------------------
@@ -32,7 +36,8 @@ class COC_GAA {
         // Base gtag.js snippet.
         add_action( 'wp_head', [ __CLASS__, 'inject_head' ], 1 );
 
-        // Non-AJAX add-to-cart: send MP immediately; queue browser event.
+        // Non-AJAX add-to-cart: queue browser event for next page load.
+        // AJAX add-to-cart is handled entirely by gaa.js (browser-only, no MP).
         add_action( 'woocommerce_add_to_cart', [ __CLASS__, 'hook_add_to_cart' ], 10, 6 );
 
         // Purchase hook: fires at checkout OR when admin marks order Completed.
@@ -42,10 +47,7 @@ class COC_GAA {
             add_action( 'woocommerce_checkout_order_processed', [ __CLASS__, 'hook_purchase' ], 10, 3 );
         }
 
-        // AJAX add-to-cart: pass event_id to browser via WC fragment.
-        add_filter( 'woocommerce_add_to_cart_fragments', [ __CLASS__, 'atc_fragment' ] );
-
-        // Page-level browser + server events.
+        // Page-level browser events + purchase MP.
         add_action( 'wp_footer', [ __CLASS__, 'flush_browser_queue' ], 2 );
         add_action( 'wp_footer', [ __CLASS__, 'fire_page_events' ], 5 );
 
@@ -88,9 +90,8 @@ class COC_GAA {
      * ------------------------------------------------------------------ */
 
     public static function fire_page_events() {
-        // Server-side page_view — same event_id stored when browser page_view was fired.
-        $pv_eid = self::$page_view_eid ?: self::make_eid( 'pv_' );
-        self::send_mp( 'page_view', [ 'page_view_id' => $pv_eid ] );
+        // page_view is handled entirely by the browser (gtag in inject_head).
+        // Sending MP page_view simultaneously would double-count in GA4 reports.
 
         if ( is_product() ) {
             self::event_view_item();
@@ -123,7 +124,7 @@ class COC_GAA {
             'items'    => [ $item ],
         ];
 
-        self::send_mp( 'view_item', $params );
+        // Browser-only: MP would double-count (GA4 has no event_id dedup for view_item).
         self::browser_event( 'view_item', $params );
     }
 
@@ -152,7 +153,7 @@ class COC_GAA {
             'items'          => $items,
         ];
 
-        self::send_mp( 'view_item_list', $params );
+        // Browser-only: MP would double-count (GA4 has no event_id dedup for view_item_list).
         self::browser_event( 'view_item_list', $params );
     }
 
@@ -161,7 +162,7 @@ class COC_GAA {
             return;
         }
         $params = self::cart_params();
-        self::send_mp( 'begin_checkout', $params );
+        // Browser-only: MP would double-count (GA4 has no event_id dedup for begin_checkout).
         self::browser_event( 'begin_checkout', $params );
     }
 
@@ -194,7 +195,10 @@ class COC_GAA {
 
     /**
      * Fires for every add-to-cart (AJAX and non-AJAX).
-     * Sends MP immediately; queues browser event for dedup.
+     * Browser-only for add_to_cart — GA4 has no event_id dedup for this event,
+     * so sending from MP simultaneously would double-count.
+     * AJAX add_to_cart is handled entirely by gaa.js.
+     * Non-AJAX add_to_cart is queued here and fired by flush_browser_queue on next page.
      */
     public static function hook_add_to_cart( $cart_item_key, $product_id, $quantity, $variation_id, $variation, $cart_item_data ) {
         $product = wc_get_product( $variation_id ?: $product_id );
@@ -202,7 +206,12 @@ class COC_GAA {
             return;
         }
 
-        $eid    = self::make_eid( 'atc_' );
+        // AJAX add_to_cart: gaa.js fires the gtag event client-side — nothing to do here.
+        if ( wp_doing_ajax() ) {
+            return;
+        }
+
+        // Non-AJAX (form submit): queue browser event so it fires on next page load.
         $item   = self::product_item( $product, (int) $quantity );
         $params = [
             'currency' => get_woocommerce_currency(),
@@ -210,28 +219,11 @@ class COC_GAA {
             'items'    => [ $item ],
         ];
 
-        self::send_mp( 'add_to_cart', $params );
-
-        if ( wp_doing_ajax() ) {
-            self::$last_atc_eid = $eid;
-        } else {
-            if ( WC()->session ) {
-                $q   = WC()->session->get( 'coc_gaa_q', [] );
-                $q[] = [ 'event' => 'add_to_cart', 'params' => $params ];
-                WC()->session->set( 'coc_gaa_q', $q );
-            }
+        if ( WC()->session ) {
+            $q   = WC()->session->get( 'coc_gaa_q', [] );
+            $q[] = [ 'event' => 'add_to_cart', 'params' => $params ];
+            WC()->session->set( 'coc_gaa_q', $q );
         }
-    }
-
-    /** Attaches the AJAX add-to-cart event_id to the WC fragments response. */
-    public static function atc_fragment( $fragments ) {
-        if ( self::$last_atc_eid ) {
-            $fragments['div#coc-gaa-atc-eid'] =
-                '<div id="coc-gaa-atc-eid" style="display:none" data-eid="' .
-                esc_attr( self::$last_atc_eid ) . '"></div>';
-            self::$last_atc_eid = '';
-        }
-        return $fragments;
     }
 
     /** Outputs queued non-AJAX add-to-cart browser events on the next page. */

@@ -49,11 +49,12 @@ class COC_Admin {
         }
 
         $submenus = [
-            [ 'coc-tracking',   __( 'Tracking',          'courier-order-check' ), 'render_page_tracking'   ],
-            [ 'coc-meta',       __( 'Meta Pixel',         'courier-order-check' ), 'render_page_meta'       ],
-            [ 'coc-tiktok',     __( 'TikTok Pixel',       'courier-order-check' ), 'render_page_tiktok'     ],
-            [ 'coc-ga4',        __( 'Google Analytics',   'courier-order-check' ), 'render_page_ga4'        ],
-            [ 'coc-gtm',        __( 'Google Tag Manager', 'courier-order-check' ), 'render_page_gtm'        ],
+            [ 'coc-tracking',    __( 'Tracking',          'courier-order-check' ), 'render_page_tracking'    ],
+            [ 'coc-meta',        __( 'Meta Pixel',         'courier-order-check' ), 'render_page_meta'        ],
+            [ 'coc-tiktok',      __( 'TikTok Pixel',       'courier-order-check' ), 'render_page_tiktok'      ],
+            [ 'coc-ga4',         __( 'Google Analytics',   'courier-order-check' ), 'render_page_ga4'         ],
+            [ 'coc-google-ads',  __( 'Google Ads',         'courier-order-check' ), 'render_page_google_ads'  ],
+            [ 'coc-gtm',         __( 'Google Tag Manager', 'courier-order-check' ), 'render_page_gtm'         ],
             [ 'coc-fb-catalog', __( 'FB Catalog',         'courier-order-check' ), 'render_page_fb_catalog' ],
             [ 'coc-pathao',       __( 'Pathao Courier',     'courier-order-check' ), 'render_page_pathao'        ],
             [ 'coc-steadfast',    __( 'Steadfast Courier',  'courier-order-check' ), 'render_page_steadfast'     ],
@@ -148,6 +149,14 @@ class COC_Admin {
         add_settings_field( 'coc_gaa_measurement_id', __( 'Measurement ID', 'courier-order-check' ), [ __CLASS__, 'render_gaa_measurement_id_field' ], 'coc-ga4', 'coc_gaa_section' );
         add_settings_field( 'coc_gaa_api_secret',     __( 'API Secret',     'courier-order-check' ), [ __CLASS__, 'render_gaa_api_secret_field'     ], 'coc-ga4', 'coc_gaa_section' );
 
+        // ── Google Ads (coc-google-ads page) ─────────────────────────
+        register_setting( 'coc_gads_group', 'coc_gads_conversion_id', [ 'type' => 'string', 'sanitize_callback' => [ __CLASS__, 'sanitize_gads_conversion_id' ], 'default' => '' ] );
+        register_setting( 'coc_gads_group', 'coc_gads_conv_label',    [ 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '' ] );
+
+        add_settings_section( 'coc_gads_section', __( 'Google Ads Conversion & Remarketing', 'courier-order-check' ), [ __CLASS__, 'render_gads_section_desc' ], 'coc-google-ads' );
+        add_settings_field( 'coc_gads_conversion_id', __( 'Conversion ID',    'courier-order-check' ), [ __CLASS__, 'render_gads_conversion_id_field' ], 'coc-google-ads', 'coc_gads_section' );
+        add_settings_field( 'coc_gads_conv_label',    __( 'Conversion Label', 'courier-order-check' ), [ __CLASS__, 'render_gads_conv_label_field'    ], 'coc-google-ads', 'coc_gads_section' );
+
         // ── Google Tag Manager (coc-gtm page) ────────────────────────
         register_setting( 'coc_gtm_group', 'coc_gtm_id', [
             'type'              => 'string',
@@ -214,6 +223,19 @@ class COC_Admin {
         add_settings_field( 'coc_cod_payment_direction',  __( 'Payment Instructions',     'courier-order-check' ), [ __CLASS__, 'render_cod_payment_direction_field'  ], 'coc-cod-restrict', 'coc_cod_restrict_section' );
     }
 
+    public static function sanitize_gads_conversion_id( $value ) {
+        $value = strtoupper( sanitize_text_field( $value ) );
+        if ( ! empty( $value ) && ! preg_match( '/^AW-\d+$/', $value ) ) {
+            add_settings_error(
+                'coc_gads_conversion_id',
+                'invalid_gads_conversion_id',
+                __( 'Invalid Google Ads Conversion ID. Expected format: AW-XXXXXXXXXXXXXXXXX', 'courier-order-check' )
+            );
+            return get_option( 'coc_gads_conversion_id', '' );
+        }
+        return $value;
+    }
+
     public static function sanitize_gtm_id( $value ) {
         $value = strtoupper( sanitize_text_field( $value ) );
         if ( ! empty( $value ) && ! preg_match( '/^GTM-[A-Z0-9]+$/', $value ) ) {
@@ -241,7 +263,7 @@ class COC_Admin {
     }
 
     public static function render_tracking_behaviour_desc() {
-        echo '<p>' . esc_html__( 'Controls when the Purchase conversion event is sent to GTM, Meta, TikTok, and GA4.', 'courier-order-check' ) . '</p>';
+        echo '<p>' . esc_html__( 'Controls when the Purchase conversion event is sent to GTM, Meta, TikTok, GA4, and Google Ads.', 'courier-order-check' ) . '</p>';
     }
 
     public static function render_purchase_on_complete_field() {
@@ -352,6 +374,27 @@ class COC_Admin {
         $val = esc_attr( get_option( 'coc_gaa_api_secret', '' ) );
         echo '<input type="password" id="coc_gaa_api_secret" name="coc_gaa_api_secret" class="regular-text" value="' . $val . '" autocomplete="new-password" />';
         echo '<p class="description">' . esc_html__( 'Measurement Protocol API Secret from Google Analytics → Admin → Data Streams → select stream → Measurement Protocol → Create.', 'courier-order-check' ) . '</p>';
+    }
+
+    /* ------------------------------------------------------------------
+     * Google Ads field renderers
+     * ------------------------------------------------------------------ */
+
+    public static function render_gads_section_desc() {
+        echo '<p>' . esc_html__( 'Browser-side Google Ads tag (gtag.js) + server-side Conversion Measurement. The Purchase conversion fires from both the browser and your server using the gclid captured from the visitor\'s click for accurate attribution.', 'courier-order-check' ) . '</p>';
+        echo '<p>' . esc_html__( 'Dynamic Remarketing events (view_item, add_to_cart, begin_checkout) also fire automatically for audience retargeting.', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_gads_conversion_id_field() {
+        $val = esc_attr( get_option( 'coc_gads_conversion_id', '' ) );
+        echo '<input type="text" id="coc_gads_conversion_id" name="coc_gads_conversion_id" class="regular-text" value="' . $val . '" placeholder="AW-XXXXXXXXXXXXXXXXX" />';
+        echo '<p class="description">' . esc_html__( 'Your Google Ads Conversion ID. Found in Google Ads → Goals → Conversions → select your Purchase action → Tag setup → Use Google Tag. Format: AW-XXXXXXXXXXXXXXXXX', 'courier-order-check' ) . '</p>';
+    }
+
+    public static function render_gads_conv_label_field() {
+        $val = esc_attr( get_option( 'coc_gads_conv_label', '' ) );
+        echo '<input type="text" id="coc_gads_conv_label" name="coc_gads_conv_label" class="regular-text" value="' . $val . '" placeholder="AbCdEfGhIjKlMnOpQr" />';
+        echo '<p class="description">' . esc_html__( 'Your Purchase Conversion Label. Found alongside the Conversion ID in your Google Ads tag setup (Tag setup → Use Google Tag → see the gtag snippet).', 'courier-order-check' ) . '</p>';
     }
 
     /* ------------------------------------------------------------------
@@ -645,6 +688,10 @@ class COC_Admin {
         self::render_config_page( __( 'Google Analytics 4', 'courier-order-check' ), 'coc_ga4_group', 'coc-ga4' );
     }
 
+    public static function render_page_google_ads() {
+        self::render_config_page( __( 'Google Ads', 'courier-order-check' ), 'coc_gads_group', 'coc-google-ads' );
+    }
+
     public static function render_page_gtm() {
         self::render_config_page( __( 'Google Tag Manager', 'courier-order-check' ), 'coc_gtm_group', 'coc-gtm' );
     }
@@ -844,6 +891,7 @@ class COC_Admin {
             'track-cart-bd_page_coc-meta',
             'track-cart-bd_page_coc-tiktok',
             'track-cart-bd_page_coc-ga4',
+            'track-cart-bd_page_coc-google-ads',
             'track-cart-bd_page_coc-gtm',
             'track-cart-bd_page_coc-fb-catalog',
             'track-cart-bd_page_coc-pathao',

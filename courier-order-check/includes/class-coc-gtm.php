@@ -279,12 +279,17 @@ class COC_GTM {
         }
 
         // Include persisted attribution data so server-side GTM tags can forward
-        // fbp/fbc to Meta CAPI, ttp to TikTok Events API, and ga_client_id to GA4 MP.
+        // fbp/fbc to Meta CAPI, ttp to TikTok Events API, ga_client_id + ga_session_id
+        // to GA4 MP, and gclid/gbraid/wbraid to Google Ads Conversion Measurement.
         $attribution = array_filter( [
-            'fbp'          => (string) $order->get_meta( '_coc_fbp' ),
-            'fbc'          => (string) $order->get_meta( '_coc_fbc' ),
-            'ttp'          => (string) $order->get_meta( '_coc_ttp' ),
-            'ga_client_id' => (string) $order->get_meta( '_coc_ga_client_id' ),
+            'fbp'            => (string) $order->get_meta( '_coc_fbp' ),
+            'fbc'            => (string) $order->get_meta( '_coc_fbc' ),
+            'ttp'            => (string) $order->get_meta( '_coc_ttp' ),
+            'ga_client_id'   => (string) $order->get_meta( '_coc_ga_client_id' ),
+            'ga_session_id'  => (string) $order->get_meta( '_coc_ga_session_id' ),
+            'gclid'          => (string) $order->get_meta( '_coc_gads_gclid' ),
+            'gbraid'         => (string) $order->get_meta( '_coc_gads_gbraid' ),
+            'wbraid'         => (string) $order->get_meta( '_coc_gads_wbraid' ),
         ] );
 
         $ecommerce = [
