@@ -79,8 +79,26 @@ class COC_Steadfast {
         }
         $code = (int) wp_remote_retrieve_response_code( $resp );
         $body = json_decode( wp_remote_retrieve_body( $resp ), true );
-        $ok   = in_array( $code, [ 200, 201 ], true );
-        $msg  = $ok ? 'OK' : ( $body['message'] ?? 'Error ' . $code );
+
+        // Check both HTTP status and body-level status (Steadfast may return HTTP 200 with error in body).
+        $http_ok     = in_array( $code, [ 200, 201 ], true );
+        $body_status = isset( $body['status'] ) ? (int) $body['status'] : $code;
+        $ok          = $http_ok && in_array( $body_status, [ 200, 201 ], true );
+
+        // Always prefer the message from the API response body.
+        $msg = $body['message'] ?? ( $ok ? 'OK' : 'Error ' . $code );
+
+        // Append validation errors if present.
+        if ( ! $ok && isset( $body['errors'] ) && is_array( $body['errors'] ) ) {
+            $parts = [];
+            foreach ( $body['errors'] as $field => $errors ) {
+                $parts[] = implode( ', ', (array) $errors );
+            }
+            if ( $parts ) {
+                $msg .= ' — ' . implode( '; ', $parts );
+            }
+        }
+
         return [ 'ok' => $ok, 'code' => $code, 'data' => $body, 'message' => $msg ];
     }
 
@@ -218,8 +236,8 @@ class COC_Steadfast {
                 'message'        => $r['data']['message'] ?? 'Consignment has been created successfully.',
             ] );
         } else {
-            $err = $r['data']['message'] ?? $r['message'];
-            wp_send_json_error( [ 'message' => $err ?: 'Order creation failed.' ] );
+            $err = $r['message'] ?: ( $r['data']['message'] ?? 'Order creation failed.' );
+            wp_send_json_error( [ 'message' => $err, 'api_response' => $r['data'] ] );
         }
     }
 

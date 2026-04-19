@@ -44,9 +44,10 @@
                 $storeSelect.empty().append( '<option value="">— Select pickup store —</option>' );
                 if ( Array.isArray( stores ) ) {
                     $.each( stores, function ( i, s ) {
+                        var storeId = s.id || s.pickup_store_id;
                         var opt = $( '<option>', {
-                            value : s.pickup_store_id,
-                            text  : ( s.pickup_store_name || ( 'Store ' + s.pickup_store_id ) ),
+                            value : storeId,
+                            text  : ( s.name || s.pickup_store_name || ( 'Store ' + storeId ) ),
                         } );
                         opt.data( 'area-id', s.area_id || 0 );
                         $storeSelect.append( opt );
@@ -90,11 +91,13 @@
                 }
                 $areaSelect.empty().append( '<option value="">— Select area —</option>' );
                 $.each( areas, function ( i, a ) {
-                    var label = a.area_name;
-                    if ( a.thana )    { label += ' (' + a.thana + ')'; }
-                    if ( a.district ) { label += ', ' + a.district; }
-                    var opt = $( '<option>', { value: a.area_id, text: label } );
-                    opt.data( 'area-name', a.area_name );
+                    var areaId   = a.id || a.area_id;
+                    var areaName = a.name || a.area_name;
+                    var label    = areaName;
+                    if ( a.post_code )      { label += ' (' + a.post_code + ')'; }
+                    if ( a.division_name )  { label += ', ' + a.division_name; }
+                    var opt = $( '<option>', { value: areaId, text: label } );
+                    opt.data( 'area-name', areaName );
                     $areaSelect.append( opt );
                 } );
                 $areaSelect.show();
@@ -160,7 +163,6 @@
             var deliveryArea = $areaName.val();
             var areaId       = $areaId.val();
 
-            if ( ! storeId )      { showMsg( 'Please select a pickup store.', true ); return; }
             if ( ! name )         { showMsg( 'Customer name is required.', true ); return; }
             if ( ! phone )        { showMsg( 'Customer phone is required.', true ); return; }
             if ( ! address )      { showMsg( 'Delivery address is required.', true ); return; }

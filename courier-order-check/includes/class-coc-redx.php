@@ -322,7 +322,9 @@ class COC_RedX {
 
         $r = self::get_areas( $args );
         if ( $r['ok'] ) {
-            wp_send_json_success( $r['data'] );
+            // API returns {"areas": [...]}, extract the array.
+            $areas = isset( $r['data']['areas'] ) ? $r['data']['areas'] : $r['data'];
+            wp_send_json_success( is_array( $areas ) ? $areas : [] );
         } else {
             wp_send_json_error( [ 'message' => $r['message'] ] );
         }
@@ -333,7 +335,9 @@ class COC_RedX {
 
         $r = self::get_pickup_stores();
         if ( $r['ok'] ) {
-            wp_send_json_success( $r['data'] );
+            // API returns {"pickup_stores": [...]}, extract the array.
+            $stores = isset( $r['data']['pickup_stores'] ) ? $r['data']['pickup_stores'] : $r['data'];
+            wp_send_json_success( is_array( $stores ) ? $stores : [] );
         } else {
             wp_send_json_error( [ 'message' => $r['message'] ] );
         }
